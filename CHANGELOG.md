@@ -30,6 +30,12 @@
 - 尚無使用者 Supabase 專案連線資料及帳號，未完成真實跨電腦、RLS 或瀏覽器視覺驗證；本機瀏覽器無法連接預覽伺服器。詳見 TEST-REPORT.md，不將模擬檢查冒稱實站通過。
 - 交付「營養科廚房大挑戰-V1.3.zip」，包含 README、CHANGELOG、AGENTS、TEST-REPORT、設定文件、SQL、程式與圖片；尚未部署到使用者 GitHub 儲存庫。
 
+### GitHub 草稿 PR 補記 — 2026-10-05
+
+- 透過 GitHub 連結建立 [草稿 PR #1](https://github.com/cchung-totoya/HFkitchen/pull/1)，提交 V1.3 程式、Supabase 設定範例、SQL 與文件。GitHub 比對確認僅有 13 個預期的程式與文件檔案；未提交本機新題圖片、Excel、玩家名單或學習紀錄。
+- 草稿 PR 尚未合併至 main，公開網站仍使用 V1.2；Supabase 專案及授權帳號尚未設定，因此尚無實站同步。引用新題圖片前，需先確認其內容適合公開發布並另行上傳至網站圖片目錄。
+- 本次僅補記發布狀態與更新 V1.3 下載包內的 CHANGELOG；功能程式未變更，也未增加真實 Supabase 或跨電腦測試結果。
+
 ## V1.2 使用期間的題庫匯入診斷 — 2026-10-05
 
 此項為診斷／說明，**未發布新功能版本、未修改遊戲程式或使用者原始 Excel**。
