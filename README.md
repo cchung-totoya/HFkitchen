@@ -1,8 +1,20 @@
-# 營養科廚房大挑戰 V1.2
+# 營養科廚房大挑戰 V1.3
+
+V1.3 將棋盤上的「練習路段」改為「考題」，並提供可設定的 Supabase 共用題庫與玩家名單。GitHub Pages 繼續發布網站；管理者登入後匯入一次，其他已授權電腦可收到更新。設定步驟、登入權限與驗收方法請見 [SETUP-SYNC.md](SETUP-SYNC.md)。尚未設定 Supabase 時，畫面會明確標示「本機模式」。
+
+圖文題所需圖片仍須放在網站的 `images/questions/` 並上傳 GitHub；答題紀錄與場次目前仍儲存在各電腦瀏覽器，匯出 Excel／JSON 備份方式不變。請勿將真實員工名單或學習成果放在公開 GitHub 儲存庫。
+
+## 版本與變更紀錄
+
+完整歷史見 [CHANGELOG.md](CHANGELOG.md)，已從 V1.0 起補記功能、介面、欄位、相容性、診斷與測試限制。
+
+後續每次專案變更均須同步更新 CHANGELOG.md；未發布功能先列在「未發布」，正式交付時記錄版本與日期。純診斷或文件補記另行標示，不冒稱已修改功能。專案維護規則保存在 [AGENTS.md](AGENTS.md)，每份更新 ZIP 都須包含這兩份文件。
+
+V1.3 的共用資料設定與版本驗證見 [SETUP-SYNC.md](SETUP-SYNC.md) 和 [TEST-REPORT.md](TEST-REPORT.md)。下方 V1.2／V1.1 章節保留歷史行為說明；共用模式以本頁與設定文件為準。
 
 ## 開啟與操作
 
-1. 將 ZIP **完整解壓縮**到固定資料夾，用 Microsoft Edge 或 Google Chrome 開啟 `index.html`，不需要安裝、登入或啟動伺服器。
+1. 共用模式先依 [SETUP-SYNC.md](SETUP-SYNC.md) 設定資料庫並發布 GitHub Pages，開啟網站後登入。若僅做離線演示，可將 ZIP **完整解壓縮**到固定資料夾，用 Microsoft Edge 或 Google Chrome 開啟 `index.html`；此模式的匯入資料只存本機。
 2. 第一次開啟已有 4 位範例玩家與 12 道範例題。正式教育訓練前，請由營養科確認範例內容，改成院內核定的份量標準及照片。
 3. 「玩家管理」可新增、修改、刪除或匯入 `data/players.csv`。欄位只有 `PlayerID,Name,Department,Position`，不包含班別。
 4. 回首頁選擇「多人同樂」並勾選 2–4 位玩家，或選「單人與電腦對戰」並勾選 1 位玩家，按「開始遊戲」。每人初始 100 分，輪流擲 1–6 點骰子，走 20 格棋盤；所有玩家抵達終點後結束。
@@ -70,13 +82,13 @@ QuestionID,Category,Type,Question,OptionA,OptionB,OptionC,OptionD,Answer,Explana
 - 題目分析 Attempts 是作答次數，Participants 是不同玩家人數；相同 QuestionID 若題目或答案更改，會分版本統計。
 - 匯出檔案會下載到瀏覽器設定的下載資料夾，可自行移至 `results/`。
 - JSON 備份保存完整本機資料，包括未完成的遊戲。本版提供備份下載，尚未提供 JSON 回復介面；需保留原瀏覽器資料或由維護者回復。
-- 「清除遊戲紀錄」保留玩家和題庫；「清除所有本機資料」全部清空。兩者均需確認，且只影響本系統的 localStorage，不清除其他網站的資料。
+- 「清除遊戲紀錄」保留玩家和題庫；離線本機模式另提供「清除所有本機資料」。共用模式不提供清除所有本機資料，以免和共用題庫混淆。
 
 ## 保存與限制
 
-- 玩家、題庫、答題紀錄、場次及未完成遊戲保存在同一瀏覽器的 localStorage。重新開啟可續玩；作答中的計時會包含頁面關閉／離開的時間，適合完整記錄經過時間，不是純前景操作時間。
+- 共用模式下，玩家與題庫以 Supabase 為準；答題紀錄、場次及未完成遊戲保存在同一瀏覽器的 localStorage。離線本機模式仍將所有資料存入 localStorage。重新開啟可續玩；作答中的計時會包含頁面關閉／離開的時間。
 - 請維持專案路徑、瀏覽器及使用者設定檔；搬移檔案、換瀏覽器、無痕模式或清除瀏覽器資料可能看不到舊紀錄。請每次訓練後下載 Excel 與 JSON 備份。
-- 無後端、帳號、登入或跨電腦同步。管理者頁面是操作模式，不是存取權限控管；可接觸此電腦的人可看見紀錄。
+- 共用模式須有 Supabase 帳號與 `kitchen_members` 授權。題庫與玩家跨電腦同步；學習紀錄目前不集中。離線本機模式沒有登入或跨電腦同步。
 - 建議只開啟一個分頁。偵測到其他分頁更新時會提示重新整理，停止覆寫，避免資料互相覆蓋。
 - 儲存失敗會顯示提示，當次記憶體中的資料仍可匯出，但可能無法跨次保存。每次匯入上限 10 MB，適合第一版少量題庫。
 - 各玩家骰子落點隨機，作答題數可能不同，甚至可能沒有作答；圖表會顯示「尚未作答」，不以 0% 代替。
@@ -89,16 +101,24 @@ kitchen-monopoly/
 ├── index.html
 ├── style.css
 ├── script.js
+├── cloud-sync.js
 ├── README.md
+├── CHANGELOG.md
+├── AGENTS.md
 ├── TEST-REPORT.md
+├── SETUP-SYNC.md
 ├── data/
 │   ├── players.csv
 │   ├── questions.csv
-│   └── sample-data.js
-├── images/questions/  （8 張示意圖）
+│   ├── sample-data.js
+│   └── cloud-config.js
+├── supabase/schema.sql
+├── images/questions/
 ├── vendor/
 │   ├── xlsx.full.min.js
-│   └── LICENSE-SheetJS.txt
+│   ├── LICENSE-SheetJS.txt
+│   ├── supabase-js-2.57.0.min.js
+│   └── LICENSE-Supabase.txt
 └── results/README.txt
 ```
 
