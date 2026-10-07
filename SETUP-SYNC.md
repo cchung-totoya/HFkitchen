@@ -1,5 +1,7 @@
 # V1.3 共用題庫與玩家名單設定
 
+> **歷史文件：V1.4 已改為 `data/players.csv` 與 `data/questions.csv` 為唯一正式資料來源，網頁不再載入 Supabase。請改看 [DATA-UPDATE.md](DATA-UPDATE.md)。**
+
 GitHub Pages 繼續提供網站及 `images/` 圖片。Supabase 保存管理者發布的玩家名單與題庫，已登入的電腦透過 Realtime 接收變更；連線中斷時每 15 秒重新查詢。答題紀錄、場次與學習統計目前仍保存在各自瀏覽器。
 
 ## 初次設定

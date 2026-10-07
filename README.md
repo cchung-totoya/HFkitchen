@@ -1,126 +1,32 @@
-# 營養科廚房大挑戰 V1.3
+# 營養科廚房大挑戰 V1.4
 
-V1.3 將棋盤上的「練習路段」改為「考題」，並提供可設定的 Supabase 共用題庫與玩家名單。GitHub Pages 繼續發布網站；管理者登入後匯入一次，其他已授權電腦可收到更新。設定步驟、登入權限與驗收方法請見 [SETUP-SYNC.md](SETUP-SYNC.md)。尚未設定 Supabase 時，畫面會明確標示「本機模式」。
+20 格配膳教育大富翁，支援 2–4 人及單人對電腦、文字與圖文選擇題、30 秒圖片題、作答紀錄及四張工作表的 Excel 成果匯出。介面為繁體中文及投影用大字版。
 
-圖文題所需圖片仍須放在網站的 `images/questions/` 並上傳 GitHub；答題紀錄與場次目前仍儲存在各電腦瀏覽器，匯出 Excel／JSON 備份方式不變。請勿將真實員工名單或學習成果放在公開 GitHub 儲存庫。
+## 啟動
 
-## 版本與變更紀錄
+- **Windows 下載版：**解壓縮後雙擊 `kitchen-monopoly/start.cmd`。它會從同一資料夾啟動僅供本機使用的網站，並在瀏覽器開啟 `http://127.0.0.1:8765/`。使用期間保留命令視窗；按 Ctrl+C 停止。固定網址讓同一台電腦下次啟動仍能讀取原有學習紀錄。
+- **GitHub Pages：**將專案根目錄的檔案發布在同一網站路徑，直接以 HTTPS 開啟。每次重新開啟或重新整理時讀取該次已發布的 CSV。
+- 不要直接雙擊 `index.html` 以 `file://` 開啟。瀏覽器不允許這種頁面穩定讀取旁邊的 CSV；畫面會顯示啟動指引，而不會使用舊題庫代替。
 
-完整歷史見 [CHANGELOG.md](CHANGELOG.md)，已從 V1.0 起補記功能、介面、欄位、相容性、診斷與測試限制。
+## 唯一正式資料來源
 
-後續每次專案變更均須同步更新 CHANGELOG.md；未發布功能先列在「未發布」，正式交付時記錄版本與日期。純診斷或文件補記另行標示，不冒稱已修改功能。專案維護規則保存在 [AGENTS.md](AGENTS.md)，每份更新 ZIP 都須包含這兩份文件。
+遊戲每次啟動會以不使用快取的請求，重新讀取 `data/players.csv` 與 `data/questions.csv`。這兩個檔案是唯一正式玩家與題庫來源；遊戲畫面只供檢視，沒有會改變正式資料的匯入、增刪或編輯操作。本次保留 GitHub 主分支既有的兩份 CSV 資料列，未擅自刪改管理者資料；題目與玩家內容請由管理者核定。
 
-V1.3 的共用資料設定與版本驗證見 [SETUP-SYNC.md](SETUP-SYNC.md) 和 [TEST-REPORT.md](TEST-REPORT.md)。下方 V1.2／V1.1 章節保留歷史行為說明；共用模式以本頁與設定文件為準。
+1. 管理者以 UTF-8 CSV 編輯 `data/players.csv`，欄位為 `PlayerID,Name,Department,Position`。不要加入班別。
+2. 編輯 `data/questions.csv`。保留原有 20 個欄位；必填欄位為 `QuestionID,Category,Type,Question,OptionA,OptionB,OptionC,OptionD,Answer,Explanation,Score`，其中選項文字可按題型留白，但至少需要兩個文字或圖片選項。第一版 `Category` 為 `配膳`，`Type` 為 `文字選擇` 或 `圖文選擇`。
+3. 圖文題的 `Source`、`QuestionImage` 或 `OptionImageA`–`OptionImageD` 填入 `questions/檔名.jpg` 等相對路徑；實際圖片放在 `images/questions/`，檔名與副檔名須一致。CSV 不會自動包含圖片檔。
+4. 將更新的 CSV 和圖片一併 Push 至 GitHub。其他電腦下載最新版或執行 `git pull`，下次啟動即使用新檔。GitHub Pages 須等待新版本部署完成，再重新開啟或整理網頁。
 
-## 開啟與操作
+詳細操作及更新驗證見 [DATA-UPDATE.md](DATA-UPDATE.md)。若 CSV 缺檔、欄位錯誤或資料無效，遊戲會停止並指出原因，不會載入舊 localStorage 或示範資料。
 
-1. 共用模式先依 [SETUP-SYNC.md](SETUP-SYNC.md) 設定資料庫並發布 GitHub Pages，開啟網站後登入。若僅做離線演示，可將 ZIP **完整解壓縮**到固定資料夾，用 Microsoft Edge 或 Google Chrome 開啟 `index.html`；此模式的匯入資料只存本機。
-2. 第一次開啟已有 4 位範例玩家與 12 道範例題。正式教育訓練前，請由營養科確認範例內容，改成院內核定的份量標準及照片。
-3. 「玩家管理」可新增、修改、刪除或匯入 `data/players.csv`。欄位只有 `PlayerID,Name,Department,Position`，不包含班別。
-4. 回首頁選擇「多人同樂」並勾選 2–4 位玩家，或選「單人與電腦對戰」並勾選 1 位玩家，按「開始遊戲」。每人初始 100 分，輪流擲 1–6 點骰子，走 20 格棋盤；所有玩家抵達終點後結束。
-5. 題目格隨機抽題（同一玩家先不重複，題庫用完才重新抽）。答對加題庫的 Score 分、答錯不扣分；獎勵格 +10，事件格隨機 +5 或 −5。事件分數只屬遊戲，不當成答題成效。可按「強制結束並保存」，場次會標示「強制結束」。目前分數、棋盤位置、已完成作答與學習歷程都會保留；未完成題目標示「未作答」，不算答錯。
-6. 作答後立即顯示正誤、正確答案與解析。按「下一位玩家」繼續。時間從題目顯示開始計算，單位為秒。
-7. 「學習成效 / 管理者」可選單場或全部場次，查看個人成果、玩家總表、答題明細、題目分析和場次；按「匯出學習成果 Excel」下載四張工作表。
-8. 投影時按右上角「投影全螢幕」或 F11。建議 1920×1080、瀏覽器縮放 100%；較小螢幕會改成上下排列。
+## 學習歷程與匯出
 
-## V1.2 更新：長者親善與 30 秒圖文題
+`localStorage` 僅保存此瀏覽器的答題紀錄、遊戲場次及進行中遊戲狀態。舊版留下的正式玩家與整份題庫會在首次啟動時從儲存內容剔除；舊作答與場次保留。進行中遊戲重新開啟時，其抽題清單及待答題目均從本次 CSV 重建，儲存內容只保留待答題目的編號。歷史答題內容及場次中的玩家資訊屬當時的學習紀錄，不會被新版 CSV 覆蓋。
 
-- 系統標題、頁首、首頁遊戲名稱及棋盤標題改為「營養科廚房大挑戰」。
-- 圖文選擇題從顯示時開始倒數 **30 秒**。最後 10 秒倒數會以醒目顏色顯示；文字選擇題維持不限時。
-- 30 秒內未回答會鎖定選項、顯示正確答案與解析，記錄「逾時未作答」、0 分、ResponseTime=30、TimeLimit=30。按下一位繼續遊戲。
-- 逾時在個人成果、玩家總表、題目分析及明細另外列示，不混入答錯題數。逾時仍是一次挑戰，因此納入總題數與答對率分母；平均答題時間以 30 秒計入。
-- Excel 答題明細增加 TimedOut、AnswerStatus、TimeLimit；玩家總表增加 TimeoutQuestions，題目分析增加 Timeout。原四張工作表保留。
-- 離開遊戲畫面、看放大圖片或關閉頁面都不重設時間；重新開啟時按照原題目開始時間續算，已超過 30 秒則自動記錄逾時。
-- 全站字體、選項、按鈕、玩家資料與解析放大。電腦版主要題目字體 36px、選項 28px；較小螢幕適度調整並保留大字。圖文題採較寬的題目區。
-- 題目圖片預設放大到 350px 高，選項圖片到 220px；小螢幕依可用空間調整。圖文題圖片可按「放大檢視圖片」顯示接近全螢幕的原比例圖片，倒數會繼續顯示。
-- 題目較長或圖片較多時允許上下捲動，保持大字與圖片清晰；不將字體縮小以塞入畫面。
-- 本次功能測試見 TEST-REPORT.md。受目前執行環境限制，V1.2 未完成實際瀏覽器的新版畫面驗證。
+「學習成效」可匯出玩家總表、答題明細、題目分析、遊戲場次四張 Excel 工作表，也可匯出答題明細 CSV 或僅含學習紀錄的 JSON 備份。清除遊戲紀錄不會修改兩份正式 CSV。金幣欄位若未來加入，亦應只作為遊戲紀錄保存。
 
-## V1.1 更新
+## 版本與既有檔案
 
-- 分類統一為「配膳」；題型為「文字選擇」與「圖文選擇」。原題庫和儲存中的未完成遊戲會自動轉換，無需清除資料。
-- 新增 Source「資料來源」欄位，接受 CSV/Excel 標題 Source、DataSource 或「資料來源」。路徑從專案 images/ 載入，本機圖片可放在此目錄的任意子資料夾；不接受外部網址或上層路徑。若 QuestionImage 空白，Source 圖片會出現在題目區。
-- 強制結束按鈕可在作答中、電腦回合或棋子移動時使用。確認後停止遊戲並保存，取消則繼續。未完成題目、已答題目、每人分數和位置都有紀錄。
-- 「學習成效」新增「學習歷程」，可看開始、骰子移動、抵達、作答、結束事件。遊戲場次另保存未完成題目；Excel 場次表新增模式、人員數、未作答題目與歷程欄位，完整 JSON 備份也包含歷程。
-- 單人對電腦：選一位人員，電腦作為第二位對手自動擲骰、作答與交棒。模擬答對機率為 75%，不是 AI 解題或實際學習程度。離開遊戲頁會暫停電腦自動操作，回到遊戲頁或重新開啟可接續。
-- 電腦紀錄使用 IsComputer 標記。答題明細保留人員及電腦資料，玩家總表、個人成果、整體答對率、平均時間與題目分析排除電腦，對戰結果另列電腦得分。
-- 更新時請將新檔案覆蓋到原專案資料夾，維持 index.html 路徑和同一瀏覽器設定檔，才可使用原有 localStorage 紀錄。
+V1.3 曾提出 Supabase 共用資料庫方案；V1.4 依本次需求改以 CSV 為唯一正式來源。`index.html` 不再載入 Supabase 或 sample-data.js。先前的 Supabase 檔案暫留專案，但不參與 V1.4 執行；[SETUP-SYNC.md](SETUP-SYNC.md) 為 V1.3 歷史說明，不適用於本版。變更詳見 [CHANGELOG.md](CHANGELOG.md)，測試見 [TEST-REPORT.md](TEST-REPORT.md)。
 
-## 匯入與管理題庫
-
-在「題庫管理」匯入 `.csv`、`.xlsx` 或 `.xls`，也可用表單新增、編輯、刪除。Excel 使用第一張工作表，第一列為欄位標題。CSV 優先採 UTF-8；若解碼失敗則嘗試 Big5。
-
-欄位：
-
-```text
-QuestionID,Category,Type,Question,OptionA,OptionB,OptionC,OptionD,Answer,Explanation,Source,QuestionImage,OptionImageA,OptionImageB,OptionImageC,OptionImageD,Score,Difficulty,LearningObjective,Keyword
-```
-
-- `QuestionID` 是固定編號。匯入檔內不可重複；與現有編號相同時更新，其他編號新增。玩家同樣依 `PlayerID` 更新。
-- 第一版 Category 為「配膳」。舊值「配膳份量」會自動轉換。未來可擴充 `script.js` 的 CATEGORIES 設定與場次類別選擇，遊戲依 Category 過濾題目。
-- Type 使用「文字選擇」或「圖文選擇」；舊值會自動轉換，也接受「文字選擇題」、「圖片辨識題」、「圖片辨識」、「圖文選擇題」。
-- Answer 使用 A、B、C、D，必須對應有效選項。至少兩個選項有文字或圖片；文字題可空白 C、D。Score 必須為 0–10000 的數字。題目與解析不可空白。
-- Source（資料來源）與圖片相關欄位、Difficulty、LearningObjective、Keyword 可依需要填寫。圖文選擇題至少要設定一張題目或選項圖片。舊欄位 `Image` 可當成 `QuestionImage`。
-- 缺少必要欄位、重複編號或資料錯誤時，顯示原因及第幾筆資料，整批取消，不部分匯入。
-- 遊戲中暫停修改名單與題庫。每場保存題庫快照，歷史紀錄不會因後續題目修改或刪除而失去內容。
-- 範例資料源於 `data/players.csv`、`data/questions.csv`；`sample-data.js` 是同源首次啟動資料，讓直接開啟 HTML 時不需要讀取本機 CSV。**修改 CSV 後請在介面重新匯入**，不必修改 JavaScript。
-
-## 新增圖片題
-
-1. 把院內實拍照片放到 `images/questions/`，例如 `Q013_A.jpg`。
-2. 在題庫對應列填 `Type=圖文選擇`。題目圖片填 `Source`（資料來源），也可用舊欄位 `QuestionImage`，選項圖片填 `OptionImageA`～`OptionImageD`。
-3. 欄位以 `images/` 為根目錄，填 `questions/Q013_A.jpg` 或 `images/questions/Q013_A.jpg`；若圖片直接放在 images/，填 `Q013_A.jpg`。支援 png、jpg、jpeg、webp、gif、svg；不接受網址、上層路徑。
-4. 建議各選項也填文字，避免圖片遺失時無法辨識。圖片失敗會顯示「圖片尚未建立」，不會讓遊戲中斷。
-5. 重新匯入題庫後開始新遊戲。此版附 8 張 SVG 教學示意，並非院內實際餐點照片或份量標準。
-
-## 學習成效、匯出與備份
-
-- Excel 使用 **SheetJS CE 0.20.3**，隨專案附本機套件，因此離線也可使用。來源：[官方獨立瀏覽器套件說明](https://docs.sheetjs.com/docs/getting-started/installation/standalone/)。授權在 `vendor/LICENSE-SheetJS.txt`。
-- 工作表：**玩家總表 / 答題明細 / 題目分析 / 遊戲場次**。工作表標題為繁體中文，欄位為規格要求的英文名稱。
-- Accuracy 的數值是百分比，例如 75 表示 75%，尚未作答則留空；ResponseTime 與 AverageResponseTime 單位為秒。
-- 玩家總分包含初始分、答題及事件分；選全部場次時是各場加總，另附場數和純答題得分。學習成效應以答對率、錯題及平均時間評估，不只比較遊戲總分。
-- 題目分析 Attempts 是作答次數，Participants 是不同玩家人數；相同 QuestionID 若題目或答案更改，會分版本統計。
-- 匯出檔案會下載到瀏覽器設定的下載資料夾，可自行移至 `results/`。
-- JSON 備份保存完整本機資料，包括未完成的遊戲。本版提供備份下載，尚未提供 JSON 回復介面；需保留原瀏覽器資料或由維護者回復。
-- 「清除遊戲紀錄」保留玩家和題庫；離線本機模式另提供「清除所有本機資料」。共用模式不提供清除所有本機資料，以免和共用題庫混淆。
-
-## 保存與限制
-
-- 共用模式下，玩家與題庫以 Supabase 為準；答題紀錄、場次及未完成遊戲保存在同一瀏覽器的 localStorage。離線本機模式仍將所有資料存入 localStorage。重新開啟可續玩；作答中的計時會包含頁面關閉／離開的時間。
-- 請維持專案路徑、瀏覽器及使用者設定檔；搬移檔案、換瀏覽器、無痕模式或清除瀏覽器資料可能看不到舊紀錄。請每次訓練後下載 Excel 與 JSON 備份。
-- 共用模式須有 Supabase 帳號與 `kitchen_members` 授權。題庫與玩家跨電腦同步；學習紀錄目前不集中。離線本機模式沒有登入或跨電腦同步。
-- 建議只開啟一個分頁。偵測到其他分頁更新時會提示重新整理，停止覆寫，避免資料互相覆蓋。
-- 儲存失敗會顯示提示，當次記憶體中的資料仍可匯出，但可能無法跨次保存。每次匯入上限 10 MB，適合第一版少量題庫。
-- 各玩家骰子落點隨機，作答題數可能不同，甚至可能沒有作答；圖表會顯示「尚未作答」，不以 0% 代替。
-- 課程照片與份量標準由管理者核定，未提供重量與熱量換算，也不把湯匙直徑直接當成容量或份量。
-
-## 檔案結構
-
-```text
-kitchen-monopoly/
-├── index.html
-├── style.css
-├── script.js
-├── cloud-sync.js
-├── README.md
-├── CHANGELOG.md
-├── AGENTS.md
-├── TEST-REPORT.md
-├── SETUP-SYNC.md
-├── data/
-│   ├── players.csv
-│   ├── questions.csv
-│   ├── sample-data.js
-│   └── cloud-config.js
-├── supabase/schema.sql
-├── images/questions/
-├── vendor/
-│   ├── xlsx.full.min.js
-│   ├── LICENSE-SheetJS.txt
-│   ├── supabase-js-2.57.0.min.js
-│   └── LICENSE-Supabase.txt
-└── results/README.txt
-```
-
-實測範圍與結果請見 `TEST-REPORT.md`。
-
+此 GitHub 儲存庫目前是公開儲存庫；發布正式員工名單與圖片前，請先確認院內允許公開這些內容。
