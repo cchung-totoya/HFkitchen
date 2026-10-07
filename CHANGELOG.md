@@ -25,7 +25,7 @@
 ### 文件／驗證與限制
 
 - README、DATA-UPDATE.md、TEST-REPORT.md、AGENTS.md、入口顯示版本及 ZIP 名稱同步更新為 V1.4.1。補記 [V1.4 PR #2](https://github.com/cchung-totoya/HFkitchen/pull/2) 及 [V1.4.1 PR #3](https://github.com/cchung-totoya/HFkitchen/pull/3) 已合併至 GitHub main；以 GitHub 檔案查詢確認 main 顯示 V1.4.1 且正式 CSV 為新版題庫。GitHub Pages 網站在目前網頁工具中無法存取，實際部署顯示仍待驗證。
-- 實測同資料夾重複啟動、另一資料夾占用通訊埠，沒有原始 SocketException；Edge 直接載入正式 21 題／14 人，轉換後 10 題圖片路徑存在，其中 8 個不同圖片檔由本機 HTTP 取得。Edge 模擬誤命名 Excel 檔，顯示專屬錯誤指引；並以 V1.4.1 程式重新通過 20／5 → 25／7、保留 localStorage、擲骰作答、強制結束及四張 Excel 匯出的回歸測試。
+- 實測同資料夾重複啟動、另一資料夾占用通訊埠，沒有原始 SocketException；Edge 直接載入正式 21 題／14 人，並在使用者原 V1.4 資料夾的固定 `127.0.0.1:8765` 網址重測通過。轉換後 10 題圖片路徑存在，其中 8 個不同圖片檔由本機 HTTP 取得。Edge 模擬誤命名 Excel 檔，顯示專屬錯誤指引；並以 V1.4.1 程式重新通過 20／5 → 25／7、保留 localStorage、擲骰作答、強制結束及四張 Excel 匯出的回歸測試。
 
 ## V1.4 — 2026-10-07
 

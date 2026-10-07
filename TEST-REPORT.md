@@ -7,6 +7,7 @@
 - `serve.ps1` 在相同資料夾重複啟動時正常辨識既有網站；另一資料夾占用相同通訊埠時以清楚提示退出，不顯示原始 SocketException。保留固定網址以維持同瀏覽器學習紀錄。
 - Edge 模擬把 Excel 二進位檔當成 `questions.csv` 回傳，畫面顯示「Excel 活頁簿」與「另存新檔 → CSV UTF-8」指引，不會進入舊題庫。JavaScript 語法檢查通過。
 - 以 V1.4.1 程式重新執行隔離測試：20 題／5 人 → 不清 localStorage 更新為 25 題／7 人；舊歷程保留，擲骰作答、強制結束與四張 Excel 匯出均通過。
+- 另從截圖所示的原 `outputs/營養科廚房大挑戰-V1.4/kitchen-monopoly` 資料夾，以原本的 `127.0.0.1:8765` 位址實際啟動 Edge，確認 14 位玩家與 21 題直接載入且沒有瀏覽器腳本錯誤。
 - [V1.4.1 PR #3](https://github.com/cchung-totoya/HFkitchen/pull/3) 已合併至 main，從 GitHub 主分支直接讀回 `index.html`、`README.md` 及 `data/questions.csv`，確認顯示版本 V1.4.1、題庫為更新後的 UTF-8 CSV。GitHub Pages 網址在目前網頁工具中無法存取，因此不標示網站端實測通過。
 - **限制：**截圖當下占用 `8765` 的程序已結束，因此無法追溯其身分；當時的錯誤明確指出通訊埠已被占用。院內題目正確性尚未審核；GitHub Pages 端需在新版本發布後再驗證。
 
