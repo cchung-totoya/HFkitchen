@@ -1,4 +1,4 @@
-/* 營養科廚房大挑戰 V1.4 — 每次啟動以正式 CSV 載入玩家與題庫。 */
+/* 營養科廚房大挑戰 V1.4.1 — 每次啟動以正式 CSV 載入玩家與題庫。 */
 'use strict';
 (() => {
 const KEY='kitchen-monopoly-v1', CATEGORIES=['配膳']; // 擴充分類時新增此設定即可；抽題依場次分類篩選。
@@ -76,7 +76,11 @@ function confirmAction(title,text,action){clearTimeout(computerTimer);$('confirm
 async function fetchOfficialCsv(path){
   const response=await fetch(path+'?v='+Date.now(),{cache:'no-store'});
   if(!response.ok)throw Error(`${path} 讀取失敗（HTTP ${response.status}）`);
-  return parseCSV(await response.text());
+  const bytes=await response.arrayBuffer(),start=new Uint8Array(bytes,0,Math.min(bytes.byteLength,4));
+  if(start.length===4&&start[0]===0x50&&start[1]===0x4b&&start[2]===0x03&&start[3]===0x04)throw Error(`${path} 實際是 Excel 活頁簿，不能只改副檔名為 .csv；請在 Excel 使用「另存新檔 → CSV UTF-8」後再試。`);
+  let source;
+  try{source=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error(`${path} 不是有效的 UTF-8 CSV，請重新另存為 CSV UTF-8。`);}
+  return parseCSV(source);
 }
 async function loadCatalog(){
   catalogStatus='loading';catalogError='';render();
