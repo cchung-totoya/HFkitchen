@@ -1,4 +1,4 @@
-/* 營養科廚房大挑戰 V1.3 — 可選用 Supabase 共用題庫。 */
+/* 營養科廚房大挑戰 V1.4 — 每次啟動以正式 CSV 載入玩家與題庫。 */
 'use strict';
 (() => {
 const KEY='kitchen-monopoly-v1', CATEGORIES=['配膳']; // 擴充分類時新增此設定即可；抽題依場次分類篩選。
@@ -20,17 +20,25 @@ let page='home', selected=new Set(), filterSession='all', statsTab='players', bu
 const IMAGE_TIME_LIMIT=30;
 let gameMode='multi', computerTimer=null;
 let storageError='', externalConflict=false, savedRaw=null;
-const CLOUD=window.KitchenCloud;
-let cloudStatus=CLOUD?.configured()?'loading':'local', cloudEmail='', cloudError='', cloudBusy=false, cloudRevision=-1;
+let catalogStatus='loading', catalogError='';
 
 // ====================== Local Storage ======================
+function historyGame(g){
+  if(!g)return null;
+  const copy={...g,questionBank:undefined};
+  if(copy.pending){
+    const id=copy.pending.QuestionID||copy.pending.question?.QuestionID||'';
+    copy.pending={...copy.pending,QuestionID:id,question:undefined};
+  }
+  return copy;
+}
 function readStore(){
   try {
     savedRaw=localStorage.getItem(KEY);
-    if(savedRaw){const d=JSON.parse(savedRaw);if(d.version!==1||!['players','questions','records','sessions'].every(k=>Array.isArray(d[k])))throw Error('資料格式不符');
-      players=d.players;questions=d.questions;records=d.records;sessions=d.sessions;game=d.game||null;
-    } else {players=clone(window.SAMPLE_DATA.players);questions=clone(window.SAMPLE_DATA.questions);}
-  } catch(e){storageError='無法讀取本機資料。請先匯出備份，或檢查瀏覽器儲存權限。未覆寫原有資料。';players=clone(window.SAMPLE_DATA.players);questions=clone(window.SAMPLE_DATA.questions);}
+    if(savedRaw){const d=JSON.parse(savedRaw);if(!Array.isArray(d.records)||!Array.isArray(d.sessions))throw Error('資料格式不符');
+      records=d.records;sessions=d.sessions;game=historyGame(d.game);
+    }
+  } catch(e){storageError='無法讀取本機學習紀錄。未覆寫原有資料，請檢查瀏覽器儲存權限。';}
 }
 function normalizeQuestion(q){
   const legacy=q.Category==='配膳份量'||['圖片選擇','圖片選擇題','圖片辨識','圖片辨識題'].includes(q.Type);
@@ -40,90 +48,81 @@ function normalizeQuestion(q){
   if(legacy)for(const k of ['Source','QuestionImage','OptionImageA','OptionImageB','OptionImageC','OptionImageD'])if(q[k]&&!/[\\/]/.test(q[k]))q[k]='questions/'+q[k];
   q.Source=q.Source||q.QuestionImage||'';return q;
 }
-function migrate(){questions.forEach(normalizeQuestion);records.forEach(r=>{if(r.Category==='配膳份量')r.Category='配膳';r.Type=normalizeQuestion({Category:r.Category,Type:r.Type}).Type;r.IsComputer=!!r.IsComputer;});
+function migrate(){records.forEach(r=>{if(r.Category==='配膳份量')r.Category='配膳';r.Type=normalizeQuestion({Category:r.Category,Type:r.Type}).Type;r.IsComputer=!!r.IsComputer;});
   sessions.forEach(ss=>{if(ss.Category==='配膳份量')ss.Category='配膳';ss.GameMode=ss.GameMode||'multi';ss.HumanPlayerCount=ss.HumanPlayerCount??ss.PlayerCount;ss.Activity=ss.Activity||[];});
-  if(game){if(game.Category==='配膳份量')game.Category='配膳';game.GameMode=game.GameMode||'multi';game.questionBank.forEach(normalizeQuestion);if(game.pending)normalizeQuestion(game.pending.question);}
+  if(game){if(game.Category==='配膳份量')game.Category='配膳';game.GameMode=game.GameMode||'multi';if(game.pending?.question)normalizeQuestion(game.pending.question);}
 }
 function logActivity(type,data={}){if(!game)return;const ss=sessions.find(x=>x.GameSessionID===game.GameSessionID);ss.Activity.push({Timestamp:now(),Type:type,PlayerID:currentPlayer().PlayerID,PlayerName:currentPlayer().Name,IsComputer:!!currentPlayer().isComputer,...data});}
 function save(){
   if(externalConflict) return false;
   try {const current=localStorage.getItem(KEY);if(current!==savedRaw){externalConflict=true;storageError='另一個分頁已更新資料。請重新整理此頁後繼續，以避免覆蓋紀錄。';showStorageWarning();return false;}
-    const raw=JSON.stringify({version:1,players,questions,records,sessions,game});localStorage.setItem(KEY,raw);savedRaw=raw;return true;
+    const activeGame=historyGame(game);
+    const raw=JSON.stringify({version:2,records,sessions,game:activeGame});localStorage.setItem(KEY,raw);savedRaw=raw;return true;
   }catch(e){storageError='本機資料儲存失敗（可能空間不足或權限受限）。目前資料仍在畫面中，請立即匯出備份；關閉頁面可能遺失變更。';showStorageWarning();return false;}
+}
+function sanitizeLegacyBackup(){
+  const key=KEY+'-pre-cloud';
+  try{const raw=localStorage.getItem(key);if(!raw)return;const d=JSON.parse(raw);
+    const priorGame=historyGame(d.game);
+    localStorage.setItem(key,JSON.stringify({version:2,records:Array.isArray(d.records)?d.records:[],sessions:Array.isArray(d.sessions)?d.sessions:[],game:priorGame}));
+  }catch(e){try{localStorage.removeItem(key);}catch{}storageError='舊版備份無法轉為僅含學習紀錄，請檢查瀏覽器儲存權限。';showStorageWarning();}
 }
 function showStorageWarning(){const el=$('storage-warning');el.hidden=!storageError;el.textContent=storageError;}
 window.addEventListener('storage',e=>{if(e.key===KEY){externalConflict=true;storageError='另一個分頁已更新資料。請重新整理此頁後繼續，以避免覆蓋紀錄。';showStorageWarning();}});
 function notify(s){$('toast').textContent=s;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),5000);}
 function confirmAction(title,text,action){clearTimeout(computerTimer);$('confirm-title').textContent=title;$('confirm-text').textContent=text;$('confirm-ok').onclick=()=>{$('confirm-dialog').close();action();};$('confirm-cancel').onclick=()=>{$('confirm-dialog').close();scheduleComputer();};$('confirm-dialog').showModal();}
 
-// ====================== Shared player and question catalog ======================
-function canManage(){return cloudStatus==='local'||cloudStatus==='admin';}
-function cloudReady(){return cloudStatus==='admin'||cloudStatus==='viewer';}
-function applyCatalog(data){
-  if(!Array.isArray(data.players)||!Array.isArray(data.questions))throw Error('共用資料格式不符');
-  try{if(!localStorage.getItem(KEY+'-pre-cloud'))localStorage.setItem(KEY+'-pre-cloud',savedRaw||JSON.stringify({version:1,players,questions,records,sessions,game}));}
-  catch(e){storageError='無法保存切換前的本機備份。請先匯出完整 JSON 備份。';showStorageWarning();throw Error(storageError);}
-  players=clone(data.players);questions=clone(data.questions);questions.forEach(normalizeQuestion);
-  cloudRevision=data.revision;
-  selected=new Set([...selected].filter(id=>players.some(p=>p.PlayerID===id)));
-  save();if(cloudReady())render();
+// ====================== Official CSV catalog ======================
+async function fetchOfficialCsv(path){
+  const response=await fetch(path+'?v='+Date.now(),{cache:'no-store'});
+  if(!response.ok)throw Error(`${path} 讀取失敗（HTTP ${response.status}）`);
+  return parseCSV(await response.text());
 }
-async function initCloud(){
-  if(!CLOUD?.configured())return;
-  cloudStatus='loading';cloudError='';render();
-  try{const state=await CLOUD.start(applyCatalog);cloudStatus=state.signedIn?(state.admin?'admin':'viewer'):'login';cloudEmail=state.email||'';}
-  catch(e){cloudStatus='error';cloudError=e.message;}
-  render();
+async function loadCatalog(){
+  catalogStatus='loading';catalogError='';render();
+  try{
+    if(location.protocol==='file:')throw Error('請使用 start.cmd 啟動本機版本；直接開啟 index.html 無法讀取正式 CSV。');
+    const [p,q]=await Promise.all([fetchOfficialCsv('data/players.csv'),fetchOfficialCsv('data/questions.csv')]);
+    const missingPlayers=PF.filter(k=>!p.headers.includes(k));
+    const requiredQuestions=['QuestionID','Category','Type','Question','OptionA','OptionB','OptionC','OptionD','Answer','Explanation','Score'];
+    const missingQuestions=requiredQuestions.filter(k=>!q.headers.includes(k));
+    if(missingPlayers.length)throw Error('players.csv 缺少欄位：'+missingPlayers.join('、'));
+    if(missingQuestions.length)throw Error('questions.csv 缺少欄位：'+missingQuestions.join('、'));
+    const nextPlayers=validatePlayers(p.rows),nextQuestions=validateQuestions(q.rows);
+    players=nextPlayers;questions=nextQuestions;
+    selected=new Set([...selected].filter(id=>players.some(x=>x.PlayerID===id)));
+    if(game){
+      game.questionBank=clone(questions.filter(x=>x.Category===game.Category));
+      if(game.pending){
+        const updated=game.questionBank.find(x=>x.QuestionID===game.pending.QuestionID);
+        if(updated)game.pending.question=clone(updated);
+        else{game.pending=null;game.phase='next';game.message='原題目已從新版題庫移除，請繼續下一位玩家。';save();}
+      }
+    }
+    catalogStatus='ready';render();
+  }catch(e){catalogStatus='error';catalogError=e.message;render();}
 }
-async function publishCatalog(nextPlayers,nextQuestions,expectedRevision=cloudRevision){
-  if(cloudBusy)throw Error('正在發布資料，請稍候');
-  if(cloudStatus==='local') {players=nextPlayers;questions=nextQuestions;if(!save())throw Error(storageError);render();return;}
-  if(cloudStatus!=='admin')throw Error('只有管理者可以更新共用資料');
-  if(expectedRevision!==cloudRevision)throw Error('共用資料已被其他管理者更新；請關閉編輯視窗，查看最新版後重試');
-  cloudBusy=true;
-  try{await CLOUD.publish(nextPlayers,nextQuestions);}
-  finally{cloudBusy=false;}
-}
-function cloudGateView(){
-  if(cloudStatus==='loading')return '<section class="panel cloud-gate"><h1>正在連接共用資料</h1><p>請稍候，系統正在確認登入與載入最新版題庫。</p></section>';
-  if(cloudStatus==='error')return `<section class="panel cloud-gate"><h1>共用資料暫時無法連線</h1><p class="error-box">${esc(cloudError)}</p><button id="cloud-retry">重新連線</button><p class="note">為避免使用過期題庫，連線恢復前暫停遊戲與匯入。</p></section>`;
-  return `<section class="panel cloud-gate"><h1>登入營養科廚房大挑戰</h1><p>登入後會載入管理者發布的最新玩家與題庫。</p><form id="cloud-login"><label class="field">電子郵件<input name="email" type="email" autocomplete="username" required></label><label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">登入並載入共用資料</button></form>${cloudError?`<p class="error-box">${esc(cloudError)}</p>`:''}</section>`;
-}
-function cloudBanner(){return cloudStatus==='local'?'<div class="sync-banner local">本機模式 · 尚未設定共用資料庫；匯入資料只保存在這台電腦。</div>':`<div class="sync-banner"><span>● 共用題庫已連線 · ${cloudStatus==='admin'?'管理者':'使用者'} · ${esc(cloudEmail)}</span><span>題庫與玩家即時同步；本機學習歷程仍保存在此瀏覽器。</span><button id="cloud-logout" class="secondary">登出</button></div>`;}
-function wireCloudGate(){
-  if($('cloud-retry'))$('cloud-retry').onclick=initCloud;
-  if($('cloud-login'))$('cloud-login').onsubmit=async e=>{e.preventDefault();const data=new FormData(e.target);cloudStatus='loading';cloudError='';render();try{const state=await CLOUD.signIn(String(data.get('email')),String(data.get('password')));cloudStatus=state.admin?'admin':'viewer';cloudEmail=state.email||'';}catch(err){cloudStatus='login';cloudError=err.message;}render();};
-}
+function catalogGateView(){return catalogStatus==='loading'
+  ?'<section class="panel cloud-gate"><h1>正在讀取正式 CSV</h1><p>每次啟動都重新載入 data/players.csv 與 data/questions.csv。</p></section>'
+  :`<section class="panel cloud-gate"><h1>正式資料載入失敗</h1><p class="error-box">${esc(catalogError)}</p><button id="catalog-retry">重新讀取 CSV</button><p class="note">未使用舊本機資料或範例資料。請檢查 CSV 後重試。</p></section>`;}
+function catalogBanner(){return `<div class="sync-banner"><span>正式資料：data/players.csv（${players.length} 位）與 data/questions.csv（${questions.length} 題）</span><span>每次啟動重新讀取；學習歷程留在此瀏覽器。</span></div>`;}
 
 // ====================== Views ======================
 function navigate(p){if(busy)return notify('棋子移動中，請稍候。');page=p;location.hash=p;render();}
 function render(){clearTimeout(computerTimer);clearInterval(timer);timer=null;document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
-  if(cloudStatus!=='local'&&!cloudReady()){$('app').innerHTML=cloudGateView();wireCloudGate();return;}
-  $('app').innerHTML=cloudBanner()+(page==='game'&&game?gameView():page==='players'?playersView():page==='questions'?questionsView():page==='stats'?statsView():homeView());
+  if(catalogStatus!=='ready'){$('app').innerHTML=catalogGateView();if($('catalog-retry'))$('catalog-retry').onclick=loadCatalog;return;}
+  $('app').innerHTML=catalogBanner()+(page==='game'&&game?gameView():page==='players'?playersView():page==='questions'?questionsView():page==='stats'?statsView():homeView());
   wire();imageFallbacks();tick();scheduleComputer();
 }
-function homeView(){return `<section class="hero"><div><span class="eyebrow">KITCHEN LEARNING / 配膳份量</span><h1>一起走一圈，<br>把正確份量記起來。</h1><p>把日常配膳變成一場互動挑戰。輪流擲骰、辨識份量，讓每一次作答都成為學習的起點。</p><span class="pill">20 格棋盤</span> <span class="pill">多人 / 單人對電腦</span> <span class="pill">文字 × 圖文題</span></div><div class="hero-art"><span class="eyebrow" style="color:#d9e7d9">營養科廚房大挑戰</span><strong>學習有趣，<br>成效有跡可循。</strong><div class="steps"><span>01<br>選擇玩家</span><span>02<br>配膳挑戰</span><span>03<br>學習成果</span></div></div></section>${game?`<div class="panel" style="margin-bottom:20px"><h2>有一場進行中的遊戲</h2><p>${esc(game.members.map(p=>p.Name).join('、'))} · ${esc(game.GameSessionID)}</p><button id="resume">繼續遊戲</button></div>`:''}<section class="setup"><div class="panel"><div class="page-head"><h2>選擇今天的玩家</h2><button class="quiet" data-go="players">管理名單 →</button></div><label class="field">遊戲模式<select id="game-mode" ${game?'disabled':''}><option value="multi" ${gameMode==='multi'?'selected':''}>多人同樂（2–4 位玩家）</option><option value="computer" ${gameMode==='computer'?'selected':''}>單人與電腦對戰（1 位玩家 + 電腦）</option></select></label><p class="muted">${gameMode==='computer'?'選擇 1 位玩家；電腦會自動擲骰與模擬作答。':'勾選 2–4 位玩家，大家輪流操作同一台電腦。'}</p><div class="player-picker">${players.map(p=>`<label class="pick"><input type="checkbox" data-pick="${esc(p.PlayerID)}" ${selected.has(p.PlayerID)?'checked':''} ${game?'disabled':''}><span><strong>${esc(p.Name)}</strong><small>${esc(p.Department)} · ${esc(p.Position)}</small><small>${esc(p.PlayerID)}</small></span></label>`).join('')||'<p>請先新增或匯入玩家。</p>'}</div><div class="actions"><button id="start" ${game?'disabled':''}>開始遊戲 <span id="selected-count">（${selected.size}/${gameMode==='computer'?1:4}）</span></button><small>目前題庫 ${questions.filter(q=>q.Category===CATEGORIES[0]).length} 題</small></div></div><aside class="panel"><h2>今天的遊戲規則</h2><ul class="rules"><li>每人初始 100 分</li><li>骰子點數 1–6，輪流前進</li><li>答對依題庫加分，答錯不扣分</li><li>獎勵格 +10；事件格 +5 或 −5</li><li>全部抵達終點後查看成果</li><li>可隨時強制結束並保存歷程</li><li>電腦模擬作答不納入人員成效</li></ul><p class="note">範例題庫與圖片為教學示意，正式訓練前請由營養科確認，並替換為院內規範與照片。</p></aside></section>`;}
-function playersView(){return `<div class="page-head"><div><span class="eyebrow">PLAYER MANAGEMENT</span><h1>玩家管理</h1><p class="muted">${players.length} 位玩家 · 保留編號，讓歷次學習紀錄可追蹤。</p></div><button id="add-player" ${game||!canManage()?'disabled':''}>＋ 新增玩家</button></div><div class="toolbar"><label class="file-label">匯入玩家 CSV<input id="import-players" type="file" accept=".csv" ${game||!canManage()?'disabled':''}></label><button id="export-players" class="secondary">匯出玩家 CSV</button><a href="data/players.csv" download>下載範例</a></div><p class="note">欄位：PlayerID、Name、Department、Position。匯入會依 PlayerID 新增或更新；重複編號或錯誤資料會整批取消。${game?'遊戲進行中暫停編輯名單。':''}</p><div class="table-wrap"><table><thead><tr><th>編號</th><th>姓名</th><th>單位 / 部門</th><th>職稱</th><th>操作</th></tr></thead><tbody>${players.map(p=>`<tr><td>${esc(p.PlayerID)}</td><td>${esc(p.Name)}</td><td>${esc(p.Department)}</td><td>${esc(p.Position)}</td><td><button data-edit-player="${esc(p.PlayerID)}" class="secondary" ${game||!canManage()?'disabled':''}>編輯</button><button data-delete-player="${esc(p.PlayerID)}" class="quiet" ${game||!canManage()?'disabled':''}>刪除</button></td></tr>`).join('')}</tbody></table></div>`;}
-function questionsView(){return `<div class="page-head"><div><span class="eyebrow">QUESTION BANK</span><h1>配膳題庫</h1><p class="muted">${questions.length} 道題目 · 正確答案、解析與得分皆由題庫設定。</p></div><button id="add-question" ${game||!canManage()?'disabled':''}>＋ 新增題目</button></div><div class="toolbar"><label class="file-label">匯入 CSV / Excel<input id="import-questions" type="file" accept=".csv,.xlsx,.xls" ${game||!canManage()?'disabled':''}></label><button id="export-questions" class="secondary">匯出題庫 CSV</button><button id="export-question-xlsx" class="secondary">匯出題庫 Excel</button><a href="data/questions.csv" download>下載範例</a></div><p class="note">資料來源（Source）從專案 images/ 讀取圖片，例如 questions/portion-2.svg。支援舊欄位 Image（視為 QuestionImage）。Excel 讀取第一張工作表；以 QuestionID 新增或更新。${game?'遊戲進行中暫停編輯題庫。':''}</p><div class="table-wrap"><table><thead><tr><th>編號</th><th>分類 / 題型</th><th>題目</th><th>資料來源</th><th>答案</th><th>分數</th><th>操作</th></tr></thead><tbody>${questions.map(q=>`<tr><td>${esc(q.QuestionID)}</td><td>${esc(q.Category)} / ${esc(q.Type)}<br><small>${esc(q.Difficulty)}</small></td><td><span class="qtext">${esc(q.Question)}</span><small>${esc(q.LearningObjective)}</small></td><td>${esc(q.Source||'—')}</td><td>${esc(q.Answer)}</td><td>${q.Score}</td><td><button data-edit-question="${esc(q.QuestionID)}" class="secondary" ${game||!canManage()?'disabled':''}>編輯</button><button data-delete-question="${esc(q.QuestionID)}" class="quiet" ${game||!canManage()?'disabled':''}>刪除</button></td></tr>`).join('')}</tbody></table></div>`;}
-function field(key,label,value='',type='text',required=false){return `<label class="field">${label}<input name="${key}" type="${type}" value="${esc(value)}" ${required?'required':''} ${type==='number'?'min="0" max="10000" step="any"':''}></label>`;}
-function editorError(msg){$('form-error').hidden=false;$('form-error').textContent=msg;}
-
+function homeView(){return `<section class="hero"><div><span class="eyebrow">KITCHEN LEARNING / 配膳份量</span><h1>一起走一圈，<br>把正確份量記起來。</h1><p>把日常配膳變成一場互動挑戰。輪流擲骰、辨識份量，讓每一次作答都成為學習的起點。</p><span class="pill">20 格棋盤</span> <span class="pill">多人 / 單人對電腦</span> <span class="pill">文字 × 圖文題</span></div><div class="hero-art"><span class="eyebrow" style="color:#d9e7d9">營養科廚房大挑戰</span><strong>學習有趣，<br>成效有跡可循。</strong><div class="steps"><span>01<br>選擇玩家</span><span>02<br>配膳挑戰</span><span>03<br>學習成果</span></div></div></section>${game?`<div class="panel" style="margin-bottom:20px"><h2>有一場進行中的遊戲</h2><p>${esc(game.members.map(p=>p.Name).join('、'))} · ${esc(game.GameSessionID)}</p><button id="resume">繼續遊戲</button></div>`:''}<section class="setup"><div class="panel"><div class="page-head"><h2>選擇今天的玩家</h2><button class="quiet" data-go="players">管理名單 →</button></div><label class="field">遊戲模式<select id="game-mode" ${game?'disabled':''}><option value="multi" ${gameMode==='multi'?'selected':''}>多人同樂（2–4 位玩家）</option><option value="computer" ${gameMode==='computer'?'selected':''}>單人與電腦對戰（1 位玩家 + 電腦）</option></select></label><p class="muted">${gameMode==='computer'?'選擇 1 位玩家；電腦會自動擲骰與模擬作答。':'勾選 2–4 位玩家，大家輪流操作同一台電腦。'}</p><div class="player-picker">${players.map(p=>`<label class="pick"><input type="checkbox" data-pick="${esc(p.PlayerID)}" ${selected.has(p.PlayerID)?'checked':''} ${game?'disabled':''}><span><strong>${esc(p.Name)}</strong><small>${esc(p.Department)} · ${esc(p.Position)}</small><small>${esc(p.PlayerID)}</small></span></label>`).join('')||'<p>請先在 data/players.csv 填入正式玩家。</p>'}</div><div class="actions"><button id="start" ${game?'disabled':''}>開始遊戲 <span id="selected-count">（${selected.size}/${gameMode==='computer'?1:4}）</span></button><small>目前題庫 ${questions.filter(q=>q.Category===CATEGORIES[0]).length} 題</small></div></div><aside class="panel"><h2>今天的遊戲規則</h2><ul class="rules"><li>每人初始 100 分</li><li>骰子點數 1–6，輪流前進</li><li>答對依題庫加分，答錯不扣分</li><li>獎勵格 +10；事件格 +5 或 −5</li><li>全部抵達終點後查看成果</li><li>可隨時強制結束並保存歷程</li><li>電腦模擬作答不納入人員成效</li></ul><p class="note">正式玩家與題目請編輯 data/ 內的 CSV，再重新發布專案；圖片放在 images/questions/。</p></aside></section>`;}
+function playersView(){return `<div class="page-head"><div><span class="eyebrow">PLAYER MANAGEMENT</span><h1>正式玩家名單</h1><p class="muted">從 data/players.csv 載入 ${players.length} 位玩家。</p></div></div><div class="toolbar"><a class="file-label" href="data/players.csv" download>下載正式 players.csv</a></div><p class="note">唯一正式來源為 data/players.csv。管理者請在專案檔案中編輯 PlayerID、Name、Department、Position，重新 Push／下載或 git pull 後再次啟動。此畫面不修改正式檔案。</p><div class="table-wrap"><table><thead><tr><th>編號</th><th>姓名</th><th>單位 / 部門</th><th>職稱</th></tr></thead><tbody>${players.map(p=>`<tr><td>${esc(p.PlayerID)}</td><td>${esc(p.Name)}</td><td>${esc(p.Department)}</td><td>${esc(p.Position)}</td></tr>`).join('')}</tbody></table></div>`;}
+function questionsView(){return `<div class="page-head"><div><span class="eyebrow">QUESTION BANK</span><h1>正式配膳題庫</h1><p class="muted">從 data/questions.csv 載入 ${questions.length} 道題目。</p></div></div><div class="toolbar"><a class="file-label" href="data/questions.csv" download>下載正式 questions.csv</a></div><p class="note">唯一正式來源為 data/questions.csv。管理者請直接編輯此檔並重新發布專案。圖文題的 Source 或圖片欄位填 questions/檔名.jpg，圖片放在 images/questions/，檔名須完全一致。</p><div class="table-wrap"><table><thead><tr><th>編號</th><th>分類 / 題型</th><th>題目</th><th>資料來源</th><th>答案</th><th>分數</th></tr></thead><tbody>${questions.map(q=>`<tr><td>${esc(q.QuestionID)}</td><td>${esc(q.Category)} / ${esc(q.Type)}<br><small>${esc(q.Difficulty)}</small></td><td><span class="qtext">${esc(q.Question)}</span><small>${esc(q.LearningObjective)}</small></td><td>${esc(q.Source||'—')}</td><td>${esc(q.Answer)}</td><td>${q.Score}</td></tr>`).join('')}</tbody></table></div>`;}
 // ====================== Player Management ======================
-function editPlayer(id){if(game||!canManage())return;const p=players.find(x=>x.PlayerID===id)||{},openedRevision=cloudRevision;
-  $('editor-content').innerHTML=`<h2>${id?'編輯':'新增'}玩家</h2><form id="player-form"><div class="form-grid">${PF.map((k,i)=>field(k,['玩家編號','姓名','單位 / 部門','職稱'][i],p[k], 'text',true)).join('')}</div><div id="form-error" class="error-box" hidden></div><div class="actions"><button type="button" class="secondary" id="close-editor">取消</button><button type="submit">儲存玩家</button></div></form>`;
-  if(id)$('player-form').elements.PlayerID.readOnly=true;
-  $('editor').showModal();$('close-editor').onclick=()=>$('editor').close();
-  $('player-form').onsubmit=async e=>{e.preventDefault();const row=Object.fromEntries(new FormData(e.target));try{const pp=validatePlayers([row])[0];if(!id&&players.some(x=>x.PlayerID===pp.PlayerID))throw Error('PlayerID 已存在');const next=id?players.map(x=>x.PlayerID===id?pp:x):[...players,pp];await publishCatalog(next,questions,openedRevision);$('editor').close();render();notify(cloudStatus==='local'?'玩家已儲存。':'玩家已發布，其他電腦將同步更新。');}catch(err){editorError(err.message);}};
-}
+
 function validatePlayers(rows){const seen=new Set();return rows.map((r,i)=>{const p=Object.fromEntries(PF.map(k=>[k,String(r[k]??'').trim()]));const missing=PF.filter(k=>!p[k]);if(missing.length)throw Error(`第 ${i+1} 筆資料有錯誤：${missing.join('、')} 不可空白`);if(seen.has(p.PlayerID))throw Error(`第 ${i+1} 筆資料有錯誤：PlayerID 重複`);seen.add(p.PlayerID);return p;});}
 
 // ====================== Question Bank ======================
-function editQuestion(id){if(game||!canManage())return;const q=questions.find(x=>x.QuestionID===id)||{Category:CATEGORIES[0],Type:'文字選擇',Score:10,Difficulty:'簡單',Answer:'A'},openedRevision=cloudRevision;
-  const labels={QuestionID:'題目編號',OptionA:'選項 A',OptionB:'選項 B',OptionC:'選項 C',OptionD:'選項 D',Source:'資料來源（images/ 內的圖片路徑）',QuestionImage:'題目圖片路徑（選填）',OptionImageA:'選項 A 圖片',OptionImageB:'選項 B 圖片',OptionImageC:'選項 C 圖片',OptionImageD:'選項 D 圖片',Score:'答對得分',Difficulty:'難度',LearningObjective:'學習目標',Keyword:'關鍵字'};
-  $('editor-content').innerHTML=`<h2>${id?'編輯':'新增'}題目</h2><form id="question-form"><div class="form-grid">${field('QuestionID',labels.QuestionID,q.QuestionID,'text',true)}<label class="field">分類<select name="Category">${CATEGORIES.map(c=>`<option ${q.Category===c?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class="field">題型<select name="Type">${['文字選擇','圖文選擇'].map(t=>`<option ${q.Type===t?'selected':''}>${t}</option>`).join('')}</select></label>${field('Score',labels.Score,q.Score,'number',true)}<label class="field span2">題目<textarea name="Question" required>${esc(q.Question)}</textarea></label>${['OptionA','OptionB','OptionC','OptionD'].map(k=>field(k,labels[k],q[k])).join('')}<label class="field">正確答案<select name="Answer">${['A','B','C','D'].map(a=>`<option ${q.Answer===a?'selected':''}>${a}</option>`).join('')}</select></label>${field('Difficulty',labels.Difficulty,q.Difficulty)}<label class="field span2">答案解析<textarea name="Explanation" required>${esc(q.Explanation)}</textarea></label>${['Source','QuestionImage','OptionImageA','OptionImageB','OptionImageC','OptionImageD','LearningObjective','Keyword'].map(k=>field(k,labels[k],q[k])).join('')}</div><p class="note">圖文選擇可用資料來源作為題目圖片，或設定選項圖片。路徑以 images/ 為根目錄；圖片遺失時仍可用文字回答。</p><div id="form-error" class="error-box" hidden></div><div class="actions"><button type="button" class="secondary" id="close-editor">取消</button><button type="submit">儲存題目</button></div></form>`;
-  if(id)$('question-form').elements.QuestionID.readOnly=true;$('editor').showModal();$('close-editor').onclick=()=>$('editor').close();
-  $('question-form').onsubmit=async e=>{e.preventDefault();try{const qq=validateQuestions([Object.fromEntries(new FormData(e.target))])[0];if(!id&&questions.some(x=>x.QuestionID===qq.QuestionID))throw Error('QuestionID 已存在');const next=id?questions.map(x=>x.QuestionID===id?qq:x):[...questions,qq];await publishCatalog(players,next,openedRevision);$('editor').close();render();notify(cloudStatus==='local'?'題目已儲存。':'題目已發布，其他電腦將同步更新。');}catch(err){editorError(err.message);}};
-}
+
 function safeImagePath(x){if(!x)return '';const path=String(x).replace(/\\/g,'/').replace(/^images\//,'');if(path.includes('..')||!/^[-\p{L}\p{N}_ ./%]+\.(png|jpg|jpeg|webp|gif|svg)$/iu.test(path))return '';return 'images/'+path.split('/').map(encodeURIComponent).join('/');}
 function validateQuestions(rows){const seen=new Set();return rows.map((r,i)=>{const q=Object.fromEntries(QF.map(k=>[k,String(r[k]??'').trim()]));q.QuestionImage=q.QuestionImage||String(r.Image??'').trim();q.Source=q.Source||String(r.DataSource??r['資料來源']??'').trim();normalizeQuestion(q);
     q.Answer=q.Answer.toUpperCase();const fail=m=>{throw Error(`第 ${i+1} 筆資料有錯誤：${m}`);};
@@ -139,7 +138,7 @@ function imageHTML(file,alt){if(!file)return '';const src=safeImagePath(file);re
 function imageFallbacks(){document.querySelectorAll('img[data-fallback]').forEach(img=>{const fallback=()=>{const span=document.createElement('span');span.className='image-missing';span.textContent='圖片尚未建立 · 請參考選項文字';img.replaceWith(span);};img.onerror=fallback;if(img.complete&&!img.naturalWidth)fallback();});}
 
 // ====================== Game State / Session ======================
-function startGame(){if(game)return;const ids=[...selected];if(gameMode==='computer'?ids.length!==1:(ids.length<2||ids.length>4))return notify(gameMode==='computer'?'請選擇 1 位玩家與電腦對戰。':'請選擇 2–4 位不同玩家。');const bank=questions.filter(q=>q.Category===CATEGORIES[0]);if(!bank.length)return notify('請先建立配膳份量題庫。');
+function startGame(){if(game)return;const ids=[...selected];if(gameMode==='computer'?ids.length!==1:(ids.length<2||ids.length>4))return notify(gameMode==='computer'?'請選擇 1 位玩家與電腦對戰。':'請選擇 2–4 位不同玩家。');const bank=questions.filter(q=>q.Category===CATEGORIES[0]);if(!bank.length)return notify('請先在 data/questions.csv 填入配膳題目。');
   const id='GAME-'+new Date().toLocaleDateString('sv-SE').replaceAll('-','')+'-'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2));
   const members=ids.map((pid,i)=>({...clone(players.find(p=>p.PlayerID===pid)),isComputer:false,position:0,score:100,color:COLORS[i],token:i+1,finished:false,seen:[]}));
   if(gameMode==='computer')members.push({PlayerID:'CPU-'+id,Name:'電腦對手',Department:'模擬對戰',Position:'電腦',isComputer:true,position:0,score:100,color:COLORS[1],token:2,finished:false,seen:[]});
@@ -151,7 +150,7 @@ function boardPosition(i){if(i<=5)return [1,i+1];if(i<=10)return [i-4,6];if(i<=1
 function gameView(){const p=currentPlayer();return `<div class="game-top"><div><h1>營養科廚房大挑戰</h1><span class="session-id">${esc(game.GameSessionID)}</span></div><div class="actions"><span class="pill">${game.members.filter(x=>x.finished).length}/${game.members.length} 位已抵達</span><button id="end-game" class="danger">強制結束並保存</button></div></div><div class="game-layout ${game.pending?'focus-question':''}"><section><div class="board">${TILES.map((t,i)=>{const [r,c]=boardPosition(i);return `<div class="tile ${t}" style="grid-row:${r};grid-column:${c}" aria-label="第 ${i+1} 格 ${TILELABEL[t]}"><span class="tile-number">${String(i+1).padStart(2,'0')}</span><span class="tile-icon">${TILEICON[t]}</span><span class="tile-name">${TILELABEL[t]}</span><div class="tokens">${game.members.filter(x=>x.position===i).map(x=>`<span class="token" style="--player-color:${x.color}" title="${esc(x.Name)}">${x.token}</span>`).join('')}</div></div>`;}).join('')}<div class="board-center"><div class="plate">◉</div><span class="eyebrow">PORTION PRACTICE</span><h2>每一份，都用心。</h2><p>輪流擲骰 · 一起學習<br>完成後查看個人學習成果</p><span class="pill">配膳份量 / 20 格</span></div></div><div class="legend"><span>題目：依題庫加分</span><span>獎勵：+10</span><span>事件：+5 / −5</span></div><div class="roster">${game.members.map((x,i)=>`<div class="roster-card ${i===game.current?'current':''}" style="--player-color:${x.color}"><span class="token" style="--player-color:${x.color}">${x.token}</span><strong>${esc(x.Name)}${x.isComputer?' · 模擬':''}</strong><span class="score">${x.score} 分</span><small>${x.finished?'✓ 已抵達終點':`第 ${x.position+1} 格`}</small></div>`).join('')}</div></section><section class="panel play-panel"><div class="turn-label"><span class="token" style="--player-color:${p.color}">${p.token}</span><div><small>${p.isComputer?'電腦回合 · 自動操作':'現在輪到'}</small><br><strong>${esc(p.Name)}</strong></div></div>${game.pending?questionView():game.phase==='roll'?`<div class="dice-area"><span class="eyebrow">準備好接受下一個挑戰了嗎？</span><span id="dice" class="dice">${['⚀','⚁','⚂','⚃','⚄','⚅'][Math.max(0,game.dice-1)]}</span><h2>擲骰子，向前走！</h2><p class="muted">${game.dice?'上次骰子：'+game.dice+' 點':'骰子點數 1–6'}</p><button id="roll" class="roll" ${busy||p.isComputer?'disabled':''}>${p.isComputer?'電腦準備擲骰…':'擲骰子'}</button></div>`:`<div class="event-card"><span class="event-icon">${TILEICON[TILES[p.position]]}</span><h2>${esc(game.message)}</h2><p class="muted">停在第 ${p.position+1} 格 · ${TILELABEL[TILES[p.position]]}</p><button id="next" class="continue" ${p.isComputer?'disabled':''}>${p.isComputer?'電腦即將交棒…':'下一位玩家 →'}</button></div>`}</section></div>`;}
 
 // ====================== Dice / Board Movement ======================
-async function rollDice(){if(!game||busy||game.phase!=='roll')return;const activeGame=game;busy=true;$('roll').disabled=true;$('dice').classList.add('rolling');
+async function rollDice(){if(!game||busy||game.phase!=='roll')return;if(!game.questionBank?.length)return notify('正式題庫目前沒有題目；請強制結束本場並更新 questions.csv。');const activeGame=game;busy=true;$('roll').disabled=true;$('dice').classList.add('rolling');
   const dice=1+Math.floor(Math.random()*6);await new Promise(r=>setTimeout(r,450));if(game!==activeGame)return;game.dice=dice;const p=currentPlayer(),target=Math.min(19,p.position+dice);logActivity('擲骰移動',{Dice:dice,From:p.position+1,Target:target+1});
   // 儲存移動完成後的穩定狀態；重新載入不會停在半途動畫。
   for(let pos=p.position+1;pos<=target;pos++){p.position=pos;render();await new Promise(r=>setTimeout(r,140));if(game!==activeGame)return;}
@@ -170,7 +169,7 @@ function finishGame(status){if(!game)return;clearTimeout(computerTimer);busy=fal
 
 // ====================== Computer Opponent ======================
 // 電腦是模擬對手，75% 機率答對；紀錄明確標記，統計時不計入人員成效。
-function scheduleComputer(){clearTimeout(computerTimer);if(!game||page!=='game'||busy||!currentPlayer().isComputer||$('confirm-dialog').open||externalConflict)return;
+function scheduleComputer(){clearTimeout(computerTimer);if(!game||page!=='game'||busy||!currentPlayer().isComputer||$('confirm-dialog').open||externalConflict||!game.questionBank?.length)return;
   const activeGame=game;computerTimer=setTimeout(()=>{if(game!==activeGame||busy||page!=='game'||$('confirm-dialog').open)return;
     if(game.phase==='roll')rollDice();
     else if(game.pending&&!game.pending.answered){const q=game.pending.question,choices=['A','B','C','D'].filter(a=>(q['Option'+a]||q['OptionImage'+a])&&a!==q.Answer);const choice=Math.random()<.75?q.Answer:choices[Math.floor(Math.random()*choices.length)];answer(choice);}
@@ -212,7 +211,7 @@ function questionStats(rs=filteredRecords()){rs=rs.filter(r=>!r.IsComputer);
   const map=new Map();rs.forEach(r=>{const k=JSON.stringify([r.QuestionID,r.Question,r.CorrectAnswer]);if(!map.has(k))map.set(k,[]);map.get(k).push(r);});
   return [...map.values()].map(rr=>({QuestionID:rr[0].QuestionID,Question:rr[0].Question,CorrectAnswer:rr[0].CorrectAnswer,Attempts:rr.length,Participants:new Set(rr.map(r=>r.PlayerID)).size,Correct:rr.filter(r=>r.IsCorrect).length,Wrong:rr.filter(r=>!r.IsCorrect&&!r.TimedOut).length,Timeout:rr.filter(r=>r.TimedOut).length,Accuracy:accuracy(rr),AverageResponseTime:avg(rr)})).sort((a,b)=>a.Accuracy-b.Accuracy);
 }
-function statsView(){const allRecords=filteredRecords(),rs=allRecords.filter(r=>!r.IsComputer),ss=filteredSessions(),ps=playerStats(rs,ss);return `<div class="page-head"><div><span class="eyebrow">LEARNING INSIGHTS</span><h1>看見每一次進步</h1><p class="muted">個人學習成果與管理者統計 · 以答題表現找出需要再練習的概念。</p></div><button id="export-excel">↓ 匯出學習成果 Excel</button></div><div class="stats-filter"><label for="session-filter">統計範圍</label><select id="session-filter"><option value="all">全部場次</option>${sessions.slice().reverse().map(s=>`<option value="${esc(s.GameSessionID)}" ${filterSession===s.GameSessionID?'selected':''}>${fmtDate(s.GameStartTime)} · ${s.PlayerCount} 人 · ${esc(s.Status)}</option>`).join('')}</select><small>${cloudStatus==='local'?'管理者模式無登入；同一台電腦使用。':'此頁顯示這台瀏覽器的學習紀錄；其他電腦的紀錄尚未集中。'}</small></div><div class="metrics"><div class="metric"><small>參與玩家</small><strong>${ps.length}</strong><small>${ss.length} 場遊戲</small></div><div class="metric"><small>累計作答</small><strong>${rs.length}</strong><small>每次作答均自動記錄</small></div><div class="metric"><small>整體答對率</small><strong>${rs.length?pct(accuracy(rs)):'—'}</strong><small>答對 ${rs.filter(r=>r.IsCorrect).length} / 答錯 ${rs.filter(r=>!r.IsCorrect&&!r.TimedOut).length} / 逾時 ${rs.filter(r=>r.TimedOut).length}</small></div><div class="metric"><small>平均答題時間</small><strong>${rs.length?avg(rs):'—'}<small> 秒</small></strong><small>依每次作答計算</small></div></div><div class="tabs">${[['personal','個人學習成果'],['players','玩家總表'],['records','答題明細'],['questions','題目分析'],['sessions','遊戲場次'],['history','學習歷程']].map(([k,v])=>`<button data-tab="${k}" class="${statsTab===k?'active':''}">${v}</button>`).join('')}</div>${battleResults(ss)}${statsContent(ps,allRecords,ss)}<p class="note">總分包含每場初始 100 分、答題得分與棋盤事件；跨場總分為各場分數加總，並非單次測驗分數。未作答者答對率顯示「尚未作答」。題目分析依作答時的題目與答案保存版本計算。圖文題逾時另列為未作答（0 分），納入作答總數與答對率分母，不計入答錯題數。電腦模擬作答不納入人員成果、答對率或題目分析。</p><section class="export-area"><h2>資料備份與本機管理</h2><div class="actions"><button id="backup" class="secondary">匯出完整 JSON 備份</button><button id="export-records" class="secondary">匯出答題明細 CSV</button><button id="clear-records" class="quiet">清除遊戲紀錄</button>${cloudStatus==='local'?'<button id="clear-all" class="quiet">清除所有本機資料</button>':''}</div><p class="note">備份包含玩家、題庫、場次、答題紀錄與進行中的遊戲。Excel 下載至瀏覽器預設下載資料夾；results/ 可用來整理匯出檔案。</p></section>`;}
+function statsView(){const allRecords=filteredRecords(),rs=allRecords.filter(r=>!r.IsComputer),ss=filteredSessions(),ps=playerStats(rs,ss);return `<div class="page-head"><div><span class="eyebrow">LEARNING INSIGHTS</span><h1>看見每一次進步</h1><p class="muted">個人學習成果與管理者統計 · 以答題表現找出需要再練習的概念。</p></div><button id="export-excel">↓ 匯出學習成果 Excel</button></div><div class="stats-filter"><label for="session-filter">統計範圍</label><select id="session-filter"><option value="all">全部場次</option>${sessions.slice().reverse().map(s=>`<option value="${esc(s.GameSessionID)}" ${filterSession===s.GameSessionID?'selected':''}>${fmtDate(s.GameStartTime)} · ${s.PlayerCount} 人 · ${esc(s.Status)}</option>`).join('')}</select><small>此頁僅顯示這台電腦保存的學習紀錄。</small></div><div class="metrics"><div class="metric"><small>參與玩家</small><strong>${ps.length}</strong><small>${ss.length} 場遊戲</small></div><div class="metric"><small>累計作答</small><strong>${rs.length}</strong><small>每次作答均自動記錄</small></div><div class="metric"><small>整體答對率</small><strong>${rs.length?pct(accuracy(rs)):'—'}</strong><small>答對 ${rs.filter(r=>r.IsCorrect).length} / 答錯 ${rs.filter(r=>!r.IsCorrect&&!r.TimedOut).length} / 逾時 ${rs.filter(r=>r.TimedOut).length}</small></div><div class="metric"><small>平均答題時間</small><strong>${rs.length?avg(rs):'—'}<small> 秒</small></strong><small>依每次作答計算</small></div></div><div class="tabs">${[['personal','個人學習成果'],['players','玩家總表'],['records','答題明細'],['questions','題目分析'],['sessions','遊戲場次'],['history','學習歷程']].map(([k,v])=>`<button data-tab="${k}" class="${statsTab===k?'active':''}">${v}</button>`).join('')}</div>${battleResults(ss)}${statsContent(ps,allRecords,ss)}<p class="note">總分包含每場初始 100 分、答題得分與棋盤事件；跨場總分為各場分數加總，並非單次測驗分數。未作答者答對率顯示「尚未作答」。題目分析依作答時的題目與答案保存版本計算。圖文題逾時另列為未作答（0 分），納入作答總數與答對率分母，不計入答錯題數。電腦模擬作答不納入人員成果、答對率或題目分析。</p><section class="export-area"><h2>學習紀錄備份與本機管理</h2><div class="actions"><button id="backup" class="secondary">匯出完整 JSON 備份</button><button id="export-records" class="secondary">匯出答題明細 CSV</button><button id="clear-records" class="quiet">清除遊戲紀錄</button></div><p class="note">備份僅包含場次、答題紀錄與進行中的遊戲；正式玩家與題庫請備份 data/ 內的 CSV。Excel 下載至瀏覽器預設下載資料夾；results/ 可用來整理匯出檔案。</p></section>`;}
 function battleResults(ss){const battles=ss.filter(s=>s.GameMode==='computer');return battles.length?'<div class="panel battle-results"><h2>電腦對戰結果</h2>'+battles.map(s=>{const mm=membersOf(s)||[],human=mm.find(p=>!p.isComputer),cpu=mm.find(p=>p.isComputer);return '<p>'+esc(fmtDate(s.GameStartTime))+' · '+esc(s.Status)+' · '+esc(human?.Name)+': '+n(human?.score)+' 分 / 電腦: '+n(cpu?.score)+' 分</p>';}).join('')+'<small>電腦僅作為遊戲模擬對手，不納入人員學習統計。</small></div>':'';}
 function table(headers,rows){return rows.length?`<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<div class="panel empty">目前沒有資料。完成一場配膳挑戰後，就能查看學習成果。</div>';}
 function statsContent(ps,rs,ss){
@@ -232,19 +231,10 @@ function parseCSV(text){text=text.replace(/^\uFEFF/,'');const rows=[];let row=[]
     else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);if(row.some(x=>x.trim()))rows.push(row);row=[];value='';closed=false;}
     else {if(closed&&c.trim())throw Error('CSV 引號後有不合法字元');if(!closed)value+=c;}
   }
-  if(quoted)throw Error('CSV 有未關閉的引號');row.push(value);if(row.some(x=>x.trim()))rows.push(row);if(rows.length<2)throw Error('匯入檔案沒有資料列');
+  if(quoted)throw Error('CSV 有未關閉的引號');row.push(value);if(row.some(x=>x.trim()))rows.push(row);if(rows.length<1)throw Error('CSV 沒有標題列');
   const headers=rows.shift().map(x=>x.trim());if(new Set(headers).size!==headers.length||headers.some(x=>!x))throw Error('CSV 欄位名稱重複或空白');return {headers,rows:rows.map((r,i)=>{if(r.length!==headers.length)throw Error(`第 ${i+1} 筆資料有錯誤：欄位數與標題不符`);return Object.fromEntries(headers.map((h,j)=>[h,r[j]]));})};
 }
-async function importFile(kind,file){if(!file||game||!canManage())return;const openedRevision=cloudRevision;if(file.size>10*1024*1024)return notify('檔案超過 10 MB，請先縮小題庫。');
-  try {let parsed;if(/\.csv$/i.test(file.name)){const bytes=await file.arrayBuffer();let text;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{ text=new TextDecoder('big5').decode(bytes);}parsed=parseCSV(text);}
-    else{if(kind==='players')throw Error('玩家名單請使用 CSV');requireXLSX();const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});if(!wb.SheetNames.length)throw Error('Excel 沒有工作表');const ws=wb.Sheets[wb.SheetNames[0]],grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:false});if(grid.length<2)throw Error('Excel 沒有資料列');const headers=grid.shift().map(h=>String(h).trim());if(headers.some(x=>!x)||new Set(headers).size!==headers.length)throw Error('Excel 欄位名稱重複或空白');parsed={headers,rows:grid.map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]??''])))};}
-    const required=kind==='players'?PF:['QuestionID','Category','Type','Question','OptionA','OptionB','OptionC','OptionD','Answer','Explanation','Score'];const missing=required.filter(k=>!parsed.headers.includes(k));if(missing.length)throw Error('缺少欄位：'+missing.join('、'));
-    const data=kind==='players'?validatePlayers(parsed.rows):validateQuestions(parsed.rows),field=kind==='players'?'PlayerID':'QuestionID',old=kind==='players'?players:questions;const map=new Map(old.map(r=>[r[field],r]));let updates=0;data.forEach(r=>{if(map.has(r[field]))updates++;map.set(r[field],r);});
-    await publishCatalog(kind==='players'?[...map.values()]:players,kind==='questions'?[...map.values()]:questions,openedRevision);
-    render();notify(`${cloudStatus==='local'?'匯入完成':'已發布並同步'}：新增 ${data.length-updates} 筆，更新 ${updates} 筆。`);
-  }catch(e){showImportError(e.message);}
-}
-function showImportError(msg){$('editor-content').innerHTML=`<h2>匯入未完成</h2><div class="error-box">${esc(msg)}</div><p>本次檔案未發布；若其他管理者剛更新，共用資料已重新載入。請檢查後再匯入。</p><div class="actions"><button id="close-editor">關閉</button></div>`;$('editor').showModal();$('close-editor').onclick=()=>$('editor').close();}
+
 function requireXLSX(){if(!window.XLSX)throw Error('Excel 套件未載入。請確認 vendor/xlsx.full.min.js 存在，或使用 CSV 匯入 / 匯出。');}
 function download(filename,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function csv(fields,data){const cell=v=>'"'+String(v??'').replaceAll('"','""')+'"';
@@ -263,12 +253,10 @@ function createWorkbook(){requireXLSX();const wb=XLSX.utils.book_new(),rs=filter
   add('遊戲場次',['GameSessionID','GameStartTime','GameEndTime','PlayerCount','HumanPlayerCount','GameMode','Status','Category','UnansweredQuestion',...historyFields],historyRows);return wb;
 }
 function exportExcel(){try{const wb=createWorkbook();XLSX.writeFile(wb,'配膳學習成果-'+new Date().toLocaleDateString('sv-SE')+'.xlsx');notify('已下載 Excel（答對率單位為 %，答題時間為秒）。');}catch(e){notify(e.message);}}
-function exportQuestionExcel(){try{requireXLSX();const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(questions,{header:QF}),'題庫');XLSX.writeFile(wb,'配膳份量題庫.xlsx');}catch(e){notify(e.message);}}
 
 // ====================== Events ======================
 function showLargeImage(file){const src=safeImagePath(file);if(!src)return;const img=$('large-image');img.src=src;img.alt='放大的題目圖片';$('image-viewer').showModal();tick();}
 function wire(){
-  if($('cloud-logout'))$('cloud-logout').onclick=async()=>{try{await CLOUD.signOut();cloudStatus='login';cloudEmail='';render();}catch(e){notify('登出失敗：'+e.message);}};
   document.querySelectorAll('[data-zoom]').forEach(b=>b.onclick=()=>showLargeImage(b.dataset.zoom));
   const on=(id,fn,event='click')=>{if($(id))$(id).addEventListener(event,fn);};
   document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>navigate(b.dataset.go));
@@ -277,25 +265,20 @@ function wire(){
   on('start',startGame);on('resume',()=>navigate('game'));on('roll',rollDice);on('next',nextTurn);
   on('end-game',()=>confirmAction('強制結束並保存學習歷程？','會保存已完成作答、得分、棋盤位置與本場歷程。當前未完成題目標示為未作答，不算答錯；電腦回合也會停止。',()=>finishGame('強制結束')));
   document.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>answer(b.dataset.answer));
-  on('add-player',()=>editPlayer());on('add-question',()=>editQuestion());
-  for(const kind of ['player','question']){
-    document.querySelectorAll(`[data-edit-${kind}]`).forEach(b=>b.onclick=()=>kind==='player'?editPlayer(b.dataset.editPlayer):editQuestion(b.dataset.editQuestion));
-    document.querySelectorAll(`[data-delete-${kind}]`).forEach(b=>b.onclick=()=>{if(game||!canManage())return;const id=kind==='player'?b.dataset.deletePlayer:b.dataset.deleteQuestion,openedRevision=cloudRevision;confirmAction(`刪除${kind==='player'?'玩家':'題目'}？`,`${id} 將從名單刪除。歷史遊戲與作答紀錄仍會保留。`,async()=>{try{await publishCatalog(kind==='player'?players.filter(p=>p.PlayerID!==id):players,kind==='question'?questions.filter(q=>q.QuestionID!==id):questions,openedRevision);selected.delete(id);render();notify('已刪除並更新名單。');}catch(e){notify(e.message);}});});
-  }
-  on('import-players',e=>importFile('players',e.target.files[0]),'change');on('import-questions',e=>importFile('questions',e.target.files[0]),'change');
-  on('export-players',()=>exportCSV('players.csv',PF,players));on('export-questions',()=>exportCSV('questions.csv',QF,questions));on('export-question-xlsx',exportQuestionExcel);
-  on('session-filter',e=>{filterSession=e.target.value;render();},'change');document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{statsTab=b.dataset.tab;render();});
-  on('export-excel',exportExcel);on('export-records',()=>exportCSV('答題明細.csv',RF,filteredRecords()));
-  on('backup',()=>download('配膳大富翁備份-'+Date.now()+'.json',JSON.stringify({version:1,players,questions,records,sessions,game},null,2),'application/json'));
-  on('clear-records',()=>confirmAction('確定要刪除所有遊戲紀錄嗎？','此操作無法復原。所有場次、答題紀錄與進行中的遊戲將清除；玩家及題庫保留。請先匯出備份。',()=>{records=[];sessions=[];game=null;filterSession='all';selected.clear();save();render();notify('遊戲紀錄已清除。');}));
-  if(cloudStatus==='local')on('clear-all',()=>confirmAction('清除所有本機資料？','此操作無法復原。玩家、題庫、場次與答題紀錄將全部清空。不會刪除其他網站資料。請先匯出備份。',()=>{players=[];questions=[];records=[];sessions=[];game=null;selected.clear();filterSession='all';save();render();notify('已清空本系統資料，可重新匯入 CSV 範例。');}));
+  on('session-filter',e=>{filterSession=e.target.value;render();},'change');
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{statsTab=b.dataset.tab;render();});
+  on('export-excel',exportExcel);
+  on('export-records',()=>exportCSV('答題明細.csv',RF,filteredRecords()));
+  on('backup',()=>download('配膳學習紀錄備份-'+Date.now()+'.json',JSON.stringify({version:2,records,sessions,game:historyGame(game)},null,2),'application/json'));
+  on('clear-records',()=>confirmAction('確定要刪除所有遊戲紀錄嗎？','此操作無法復原。所有場次、答題紀錄與進行中的遊戲將清除；正式玩家與題庫 CSV 不受影響。請先匯出備份。',()=>{records=[];sessions=[];game=null;filterSession='all';selected.clear();save();render();notify('遊戲紀錄已清除。');}));
 }
+
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));
 $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('此瀏覽器無法切換全螢幕，請使用 F11。');}};
 window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(['home','players','questions','stats','game'].includes(p)&&p!==page){if(busy){location.hash=page;return;}page=p;render();}});
 $('image-close').onclick=()=>$('image-viewer').close();
 $('confirm-dialog').addEventListener('close',scheduleComputer);
 setInterval(tick,200);
-readStore();migrate();showStorageWarning();if(!storageError)save();page=game?'game':(['home','players','questions','stats'].includes(location.hash.slice(1))?location.hash.slice(1):'home');render();initCloud();
+readStore();migrate();showStorageWarning();if(!storageError){save();sanitizeLegacyBackup();}page=game?'game':(['home','players','questions','stats'].includes(location.hash.slice(1))?location.hash.slice(1):'home');render();if(!storageError)loadCatalog();
 })();
 

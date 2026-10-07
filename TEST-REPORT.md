@@ -1,4 +1,17 @@
-# 營養科廚房大挑戰 V1.3 測試報告
+# 營養科廚房大挑戰測試報告（最新 V1.4）
+
+## V1.4 本次驗證 — 2026-10-07（Asia/Taipei）
+
+- 使用隔離的測試目錄、專案附帶的 `serve.ps1`、本機 HTTP 與 Microsoft Edge 無頭瀏覽器。第一次以 20 題 `questions.csv`、5 位玩家 `players.csv` 啟動，首頁和兩個列表分別顯示 20／5。
+- 在同一瀏覽器與同一網址保留舊版 localStorage 的情況下，直接改寫測試目錄的正式 CSV 為 25 題／7 位，再重新載入頁面。首頁與列表顯示 25／7；先前場次及作答紀錄仍在，儲存內容已不含 `players`、`questions` 或整份 `game.questionBank`。
+- 以新題庫開始雙人遊戲、擲骰進入考題格、作答並強制結束；實際下載 Excel，重新讀取後確認有「玩家總表／答題明細／題目分析／遊戲場次」四張工作表。另以 Edge 的網路攔截測試缺少正式 `questions.csv` 時，畫面停止在錯誤提示，未顯示舊玩家或舊題庫。
+- 在測試遊戲的待答題目畫面檢查 localStorage，確認只記錄 `QuestionID`、未記錄完整題目；重新載入後由最新版 CSV 還原待答題目，仍可完成作答。
+- 實際呼叫 `serve.ps1` 提供的 `data/players.csv`，收到 HTTP 200、UTF-8 CSV 與 `Cache-Control: no-store`。20／5 與 25／7 均為工作目錄內的隔離測試資料，不在交付包內；正式交付的兩個 CSV 保留 GitHub 主分支原有資料列。
+- 另以正式交付目錄中的現有 CSV 啟動 Edge，成功顯示 14 位玩家與 12 題，兩個列表筆數相同且沒有瀏覽器腳本錯誤。這項檢查僅驗證載入，不代表題目內容已由院內核定。
+- 檢查 JavaScript 語法及正式入口：`index.html` 不載入 `sample-data.js` 或 Supabase，正式程式不再讀取 localStorage 的玩家與題庫。舊版 Supabase 檔仍留存但未進入執行流程。
+- **未驗證** GitHub main 合併與 Pages 部署完成後的實際傳播時間；亦未以院內正式玩家／題目／圖片執行。前版 V1.3 的模擬 Supabase 測試不適用於 V1.4 的 CSV 載入機制。
+
+以下為過往版本的歷史測試紀錄，不代表 V1.4 此次重新執行。
 
 ## V1.3 本次驗證 — 2026-10-05（Asia/Taipei）
 
