@@ -18,14 +18,14 @@
 ### 版本清理／文件
 
 - 依使用者限定的範圍，GitHub 主分支移除已停用的 V1.3 雲端程式、設定範例、SQL、Supabase 套件與授權檔，以及舊設定說明：`cloud-sync.js`、`data/cloud-config.js`、`supabase/schema.sql`、`vendor/supabase-js-2.57.0.min.js`、`vendor/LICENSE-Supabase.txt`、`SETUP-SYNC.md`。這些檔案自 V1.4 起未被入口頁載入；現行 CSV 與本機學習歷程不受影響。
-- 關閉 V1.3 草稿 PR #1 並清理對應 GitHub 分支。本機 V1.3 舊資料夾與 ZIP 保留；CHANGELOG 中的 V1.3 歷史不刪除。新版下載包不含上述雲端檔案。
+- 已關閉 V1.3 草稿 PR #1；對應 GitHub 分支仍存在，等待可操作的 GitHub 網頁登入後刪除。本機 V1.3 舊資料夾與 ZIP 保留；CHANGELOG 中的 V1.3 歷史不刪除。新版下載包不含上述雲端檔案。
 - README、AGENTS、TEST-REPORT、入口顯示版本與 V1.4.2 ZIP 同步更新。
 
 ### 驗證／限制
 
 - `node --check` 通過；Edge 實際載入正式 14 位玩家／21 題，確認提示列不存在且沒有瀏覽器程式錯誤。
 - 以本機 HTTP 與 Edge 重測 20 題／5 人 → 不清 localStorage 更新為 25 題／7 人；舊學習紀錄保留、沒有題庫快取，擲骰作答、強制結束及四張 Excel 工作表匯出通過。
-- GitHub Pages 公開網站畫面仍待部署後實測；題目內容是否符合院內規範仍須管理者核定。
+- 2026-10-08 於公開 GitHub Pages 網址實際看到 V1.4.2 首頁，原綠色提示列未出現，正式 14 位玩家與 21 題已載入。題目內容是否符合院內規範仍須管理者核定。
 
 ## V1.4.1 — 2026-10-07
 
