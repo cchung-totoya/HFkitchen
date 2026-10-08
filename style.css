@@ -49,9 +49,6 @@ footer{font-size:16px;gap:12px}.game-top h1{font-size:34px}.session-id{font-size
 }
 
 /* V1.3 共用題庫狀態與登入畫面。 */
-.sync-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#e5f2e9;border:2px solid #458465;border-radius:14px;padding:12px 18px;margin-bottom:20px;font-size:20px;font-weight:700}
-.sync-banner.local{background:#fff0da;border-color:#bd8840}
-.sync-banner button{min-height:44px;font-size:18px}
 .cloud-gate{max-width:720px;margin:8vh auto;padding:35px}
 .cloud-gate form{display:grid;gap:18px;max-width:520px}
 .cloud-gate form button{margin-top:8px}

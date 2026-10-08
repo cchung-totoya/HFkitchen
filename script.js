@@ -1,4 +1,4 @@
-/* 營養科廚房大挑戰 V1.4.1 — 每次啟動以正式 CSV 載入玩家與題庫。 */
+/* 營養科廚房大挑戰 V1.4.2 — 每次啟動以正式 CSV 載入玩家與題庫。 */
 'use strict';
 (() => {
 const KEY='kitchen-monopoly-v1', CATEGORIES=['配膳']; // 擴充分類時新增此設定即可；抽題依場次分類篩選。
@@ -109,13 +109,11 @@ async function loadCatalog(){
 function catalogGateView(){return catalogStatus==='loading'
   ?'<section class="panel cloud-gate"><h1>正在讀取正式 CSV</h1><p>每次啟動都重新載入 data/players.csv 與 data/questions.csv。</p></section>'
   :`<section class="panel cloud-gate"><h1>正式資料載入失敗</h1><p class="error-box">${esc(catalogError)}</p><button id="catalog-retry">重新讀取 CSV</button><p class="note">未使用舊本機資料或範例資料。請檢查 CSV 後重試。</p></section>`;}
-function catalogBanner(){return `<div class="sync-banner"><span>正式資料：data/players.csv（${players.length} 位）與 data/questions.csv（${questions.length} 題）</span><span>每次啟動重新讀取；學習歷程留在此瀏覽器。</span></div>`;}
-
 // ====================== Views ======================
 function navigate(p){if(busy)return notify('棋子移動中，請稍候。');page=p;location.hash=p;render();}
 function render(){clearTimeout(computerTimer);clearInterval(timer);timer=null;document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
   if(catalogStatus!=='ready'){$('app').innerHTML=catalogGateView();if($('catalog-retry'))$('catalog-retry').onclick=loadCatalog;return;}
-  $('app').innerHTML=catalogBanner()+(page==='game'&&game?gameView():page==='players'?playersView():page==='questions'?questionsView():page==='stats'?statsView():homeView());
+  $('app').innerHTML=page==='game'&&game?gameView():page==='players'?playersView():page==='questions'?questionsView():page==='stats'?statsView():homeView();
   wire();imageFallbacks();tick();scheduleComputer();
 }
 function homeView(){return `<section class="hero"><div><span class="eyebrow">KITCHEN LEARNING / 配膳份量</span><h1>一起走一圈，<br>把正確份量記起來。</h1><p>把日常配膳變成一場互動挑戰。輪流擲骰、辨識份量，讓每一次作答都成為學習的起點。</p><span class="pill">20 格棋盤</span> <span class="pill">多人 / 單人對電腦</span> <span class="pill">文字 × 圖文題</span></div><div class="hero-art"><span class="eyebrow" style="color:#d9e7d9">營養科廚房大挑戰</span><strong>學習有趣，<br>成效有跡可循。</strong><div class="steps"><span>01<br>選擇玩家</span><span>02<br>配膳挑戰</span><span>03<br>學習成果</span></div></div></section>${game?`<div class="panel" style="margin-bottom:20px"><h2>有一場進行中的遊戲</h2><p>${esc(game.members.map(p=>p.Name).join('、'))} · ${esc(game.GameSessionID)}</p><button id="resume">繼續遊戲</button></div>`:''}<section class="setup"><div class="panel"><div class="page-head"><h2>選擇今天的玩家</h2><button class="quiet" data-go="players">管理名單 →</button></div><label class="field">遊戲模式<select id="game-mode" ${game?'disabled':''}><option value="multi" ${gameMode==='multi'?'selected':''}>多人同樂（2–4 位玩家）</option><option value="computer" ${gameMode==='computer'?'selected':''}>單人與電腦對戰（1 位玩家 + 電腦）</option></select></label><p class="muted">${gameMode==='computer'?'選擇 1 位玩家；電腦會自動擲骰與模擬作答。':'勾選 2–4 位玩家，大家輪流操作同一台電腦。'}</p><div class="player-picker">${players.map(p=>`<label class="pick"><input type="checkbox" data-pick="${esc(p.PlayerID)}" ${selected.has(p.PlayerID)?'checked':''} ${game?'disabled':''}><span><strong>${esc(p.Name)}</strong><small>${esc(p.Department)} · ${esc(p.Position)}</small><small>${esc(p.PlayerID)}</small></span></label>`).join('')||'<p>請先在 data/players.csv 填入正式玩家。</p>'}</div><div class="actions"><button id="start" ${game?'disabled':''}>開始遊戲 <span id="selected-count">（${selected.size}/${gameMode==='computer'?1:4}）</span></button><small>目前題庫 ${questions.filter(q=>q.Category===CATEGORIES[0]).length} 題</small></div></div><aside class="panel"><h2>今天的遊戲規則</h2><ul class="rules"><li>每人初始 100 分</li><li>骰子點數 1–6，輪流前進</li><li>答對依題庫加分，答錯不扣分</li><li>獎勵格 +10；事件格 +5 或 −5</li><li>全部抵達終點後查看成果</li><li>可隨時強制結束並保存歷程</li><li>電腦模擬作答不納入人員成效</li></ul><p class="note">正式玩家與題目請編輯 data/ 內的 CSV，再重新發布專案；圖片放在 images/questions/。</p></aside></section>`;}

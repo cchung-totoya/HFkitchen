@@ -1,4 +1,4 @@
-# 營養科廚房大挑戰 V1.4.1
+# 營養科廚房大挑戰 V1.4.2
 
 20 格配膳教育大富翁，支援 2–4 人及單人對電腦、文字與圖文選擇題、30 秒圖片題、作答紀錄及四張工作表的 Excel 成果匯出。介面為繁體中文及投影用大字版。
 
@@ -11,7 +11,7 @@
 
 ## 唯一正式資料來源
 
-遊戲每次啟動會以不使用快取的請求，重新讀取 `data/players.csv` 與 `data/questions.csv`。這兩個檔案是唯一正式玩家與題庫來源；遊戲畫面只供檢視，沒有會改變正式資料的匯入、增刪或編輯操作。V1.4.1 的正式題庫由使用者更新的 Excel 活頁簿轉成 21 題 CSV，保留原題文、選項、答案及解析；題目內容仍請管理者核定。
+遊戲每次啟動會以不使用快取的請求，重新讀取 `data/players.csv` 與 `data/questions.csv`。這兩個檔案是唯一正式玩家與題庫來源；遊戲畫面只供檢視，沒有會改變正式資料的匯入、增刪或編輯操作。現有正式題庫於 V1.4.1 由使用者更新的 Excel 活頁簿轉成 21 題 CSV，保留原題文、選項、答案及解析；題目內容仍請管理者核定。
 
 1. 管理者以 UTF-8 CSV 編輯 `data/players.csv`，欄位為 `PlayerID,Name,Department,Position`。不要加入班別。
 2. 編輯 `data/questions.csv`。保留原有 20 個欄位；必填欄位為 `QuestionID,Category,Type,Question,OptionA,OptionB,OptionC,OptionD,Answer,Explanation,Score`，其中選項文字可按題型留白，但至少需要兩個文字或圖片選項。第一版 `Category` 為 `配膳`，`Type` 為 `文字選擇` 或 `圖文選擇`。
@@ -20,7 +20,7 @@
 
 詳細操作及更新驗證見 [DATA-UPDATE.md](DATA-UPDATE.md)。若 CSV 缺檔、欄位錯誤或資料無效，遊戲會停止並指出原因，不會載入舊 localStorage 或示範資料。
 
-若在 Excel 修改題庫，請用「另存新檔 → CSV UTF-8」產生真正的文字 CSV；只把 `.xlsx` 改名為 `.csv` 無法匯入。V1.4.1 會辨識這種誤命名並在畫面顯示原因。
+若在 Excel 修改題庫，請用「另存新檔 → CSV UTF-8」產生真正的文字 CSV；只把 `.xlsx` 改名為 `.csv` 無法匯入。程式會辨識這種誤命名並在畫面顯示原因。
 
 ## 學習歷程與匯出
 
@@ -30,6 +30,6 @@
 
 ## 版本與既有檔案
 
-V1.3 曾提出 Supabase 共用資料庫方案；V1.4 起改以 CSV 為唯一正式來源。`index.html` 不再載入 Supabase 或 sample-data.js。先前的 Supabase 檔案暫留專案，但不參與 V1.4.1 執行；[SETUP-SYNC.md](SETUP-SYNC.md) 為 V1.3 歷史說明，不適用於本版。變更詳見 [CHANGELOG.md](CHANGELOG.md)，測試見 [TEST-REPORT.md](TEST-REPORT.md)。
+V1.3 曾提出 Supabase 共用資料庫方案；V1.4 起改以 CSV 為唯一正式來源。V1.4.2 的 GitHub 主分支與新版下載包移除已停用的雲端程式、設定、SQL、套件與舊設定文件；本機舊版本下載包保留。歷史沿革見 [CHANGELOG.md](CHANGELOG.md)，測試見 [TEST-REPORT.md](TEST-REPORT.md)。
 
 此 GitHub 儲存庫目前是公開儲存庫；發布正式員工名單與圖片前，請先確認院內允許公開這些內容。
