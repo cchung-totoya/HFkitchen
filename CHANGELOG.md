@@ -18,7 +18,7 @@
 ### 版本清理／文件
 
 - 依使用者限定的範圍，GitHub 主分支移除已停用的 V1.3 雲端程式、設定範例、SQL、Supabase 套件與授權檔，以及舊設定說明：`cloud-sync.js`、`data/cloud-config.js`、`supabase/schema.sql`、`vendor/supabase-js-2.57.0.min.js`、`vendor/LICENSE-Supabase.txt`、`SETUP-SYNC.md`。這些檔案自 V1.4 起未被入口頁載入；現行 CSV 與本機學習歷程不受影響。
-- 已關閉 V1.3 草稿 PR #1；對應 GitHub 分支仍存在，等待可操作的 GitHub 網頁登入後刪除。本機 V1.3 舊資料夾與 ZIP 保留；CHANGELOG 中的 V1.3 歷史不刪除。新版下載包不含上述雲端檔案。
+- 已關閉 V1.3 草稿 PR #1；對應 GitHub 分支仍存在。登入轉向 Google 帳戶頁時，瀏覽器自動安全審核拒絕代理存取，因此未代為刪除；請由儲存庫擁有者在 GitHub 分支頁手動刪除。本機 V1.3 舊資料夾與 ZIP 保留；CHANGELOG 中的 V1.3 歷史不刪除。新版下載包不含上述雲端檔案。
 - README、AGENTS、TEST-REPORT、入口顯示版本與 V1.4.2 ZIP 同步更新。
 
 ### 驗證／限制
