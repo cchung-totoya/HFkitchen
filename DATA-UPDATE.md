@@ -1,22 +1,13 @@
-# 正式 CSV 更新流程（V1.4.1）
+# V1.7 正式 CSV 更新流程
 
-`data/players.csv` 與 `data/questions.csv` 是唯一正式資料來源。請在專案檔案中修改；遊戲畫面只顯示讀取結果，不會將匯入或編輯結果寫回 GitHub。
+`data/players.csv` 與 `data/questions.csv` 是唯一正式資料來源。管理者編輯專案中的兩個檔案；本機版儲存後重新啟動或整理頁面，GitHub Pages 版則須將 CSV 與新增圖片推送至 GitHub `main`，待 Pages 發布完成後整理頁面。玩家與題庫管理頁只檢視、下載正式 CSV；不會寫回檔案。
 
-## 管理者
+1. `data/players.csv` 使用 `PlayerID,Name,Department,Position`。每位玩家編號唯一，不加班別。
+2. `data/questions.csv` 保留既有 20 欄標題；每題 `QuestionID` 唯一，`Category` 使用 `配膳`，`Type` 使用 `文字選擇` 或 `圖文選擇`。
+3. 圖片另存 `images/questions/`。CSV 的 `Source`、`QuestionImage` 或選項圖片欄填 `questions/檔名.jpg` 等相對路徑；檔名與副檔名須完全一致。不要填電腦絕對路徑。`assets/` 是遊戲介面美術，不放正式考題照片。
+4. CSV 請存為 UTF-8。若在 Excel 編輯，選「另存新檔 → CSV UTF-8（逗號分隔）」，不要把 `.xlsx` 直接改副檔名。含逗號、換行或雙引號的儲存格須符合標準 CSV 引號格式。
+5. 重新啟動或整理，進入「正式玩家名單」與「正式配膳題庫」核對筆數和內容。更新不需清除快取、localStorage 或重新建立玩家。若 CSV 有誤，畫面會指出原因；修正後按「重新讀取 CSV」。
 
-1. 在 `data/players.csv` 填寫 `PlayerID,Name,Department,Position`。每位玩家編號須唯一；不要增加班別欄位。
-2. 在 `data/questions.csv` 保留既有標題列，新增或修改題目。每題 `QuestionID` 唯一，`Category` 使用 `配膳`，`Type` 使用 `文字選擇` 或 `圖文選擇`。
-3. 圖片另存於 `images/questions/`。CSV 的 `Source` 等圖片欄位填 `questions/檔名.jpg`，不填電腦絕對路徑；中文與 `%` 檔名可使用，但必須與實際檔案完全一致。
-4. 將兩個 CSV 及所需圖片一併提交並 Push 至 GitHub。若使用 GitHub Pages，等網站部署完成後重新開啟頁面。
+固定網址 `http://127.0.0.1:8765/` 可讓同一瀏覽器保留既有學習歷程；若通訊埠由另一份專案佔用，先停止該伺服器再啟動本版。已開啟的遊戲不會在檔案儲存瞬間自動改變當前畫面，需重新啟動或整理。進行中遊戲恢復時依新版 CSV 重建抽題清單，既有場次與已完成作答仍保留當時快照。
 
-CSV 請使用 UTF-8 編碼，允許 UTF-8 BOM。含逗號、換行或雙引號的欄位應使用標準 CSV 引號格式。每個檔案可只有標題列，此時畫面顯示 0 筆且無法開始遊戲；不會顯示示範資料。
-
-在 Excel 編輯後，請選「另存新檔」並指定 **CSV UTF-8（逗號分隔）**。請確認儲存後的 `questions.csv` 能用記事本開啟並在第一行看到 `QuestionID,Category,Type,...`；不要把 `.xlsx` 直接改名為 `.csv`。若啟動器提示 `8765` 已由另一資料夾使用，先關閉舊的命令視窗，再從包含新版 CSV 的資料夾啟動。
-
-## 其他單機電腦
-
-1. 下載最新版專案或在原資料夾執行 `git pull`。若重新下載，為了保留本機歷史紀錄，應維持同一瀏覽器、同一網址 `http://127.0.0.1:8765/`；Windows 請雙擊 `start.cmd`。
-2. 再次啟動或重新整理。頁面上方會顯示本次載入的玩家數與題數；「正式玩家名單」和「正式配膳題庫」可逐筆核對。
-3. 不需清除瀏覽器快取或 localStorage，也不需重新匯入舊檔。若載入失敗，頁面會停在錯誤畫面；修正 CSV 後按「重新讀取 CSV」。
-
-此流程是在下一次啟動或重新整理時取得已發布的檔案，不是管理者編輯後讓已開啟的其他電腦立刻推播更新。正在進行的場次仍保留當時的作答與玩家紀錄；下次開啟時未完成場次的抽題清單依最新版 CSV 重建。
+GitHub Pages 網址為 `https://cchung-totoya.github.io/HFkitchen/#home`。頁面每次啟動都以 `no-store` 重新取得正式 CSV；其他電腦重新開啟頁面後會看到已發布的新玩家與題庫。學習歷程依瀏覽器與網址分別儲存，不會因更新 CSV 而清除，也不會因推送 GitHub 而跨電腦同步。
