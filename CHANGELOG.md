@@ -36,6 +36,7 @@
 - README 與 DATA-UPDATE 增加 GitHub Pages 更新流程，說明正式 CSV 於各電腦重新開啟頁面時讀取，而各瀏覽器學習歷程仍保存在本機。V1.7 本機下載包同步整理，包含最新 AGENTS、CHANGELOG、README 與 TEST-REPORT。
 - 發布前對與 GitHub 主分支同步的乾淨檔案樹重新執行 Edge 測試：14 位正式玩家、21 題、20 格、72 個介面素材、選角與骰動正常；正式照片題可顯示、放大並在 30 秒逾時。
 - 發布後由 GitHub 讀回 `main`，確認為 V1.7、102 個檔案、76 個 `assets/` 檔案、舊考題活頁簿已移除。實際以瀏覽器開啟並重新載入 GitHub Pages 首頁，顯示 V1.7、14 位正式玩家與 21 題；這項線上檢查限於首頁載入，完整遊戲流程仍以前述本機／解壓包測試為準。
+- 已合併的 `codex/v1.4-csv-source-of-truth` 與 `codex/v1.4.1-csv-launch-fix` 舊分支一併移除；GitHub 分支清單讀回僅剩 `main`。既有 PR、Git 提交歷史與本文件歷史紀錄保留。
 
 ## V1.6 本機交付 — 2026-10-08（未發布至 GitHub）
 
